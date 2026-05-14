@@ -42,14 +42,15 @@ const { useState, useMemo, useRef, useEffect } = React;
 // ─── CONSTANTS ───────────────────────────────
 const RAMP_STAGES = ['Week 1','Week 2','Week 3','Week 4','Month 2','Month 3'];
 const BENCHMARKS = {
-  'Week 1': {eq_b:1,eq_c:0, cpts:0, ac:0, rec_pct:0,   fu:2,  sess:0,  rev:1500 },
-  'Week 2': {eq_b:2,eq_c:1, cpts:1, ac:1, rec_pct:0,   fu:3,  sess:3,  rev:2500 },
-  'Week 3': {eq_b:3,eq_c:2, cpts:2, ac:2, rec_pct:.25, fu:5,  sess:6,  rev:4000 },
-  'Week 4': {eq_b:4,eq_c:3, cpts:4, ac:4, rec_pct:.40, fu:6,  sess:10, rev:6000 },
-  'Month 2':{eq_b:6,eq_c:5, cpts:8, ac:8, rec_pct:.50, fu:8,  sess:16, rev:10000},
-  'Month 3':{eq_b:10,eq_c:8,cpts:15,ac:15,rec_pct:.60, fu:10, sess:25, rev:18000},
+  'Week 1': {eq_b:1,eq_c:0, cpts:0, ac:0, rec_pct:0,   fu:2,  sess:0  },
+  'Week 2': {eq_b:2,eq_c:1, cpts:1, ac:1, rec_pct:0,   fu:3,  sess:3  },
+  'Week 3': {eq_b:3,eq_c:2, cpts:2, ac:2, rec_pct:.25, fu:5,  sess:6  },
+  'Week 4': {eq_b:4,eq_c:3, cpts:4, ac:4, rec_pct:.40, fu:6,  sess:10 },
+  'Month 2':{eq_b:6,eq_c:5, cpts:8, ac:8, rec_pct:.50, fu:8,  sess:16 },
+  'Month 3':{eq_b:10,eq_c:8,cpts:15,ac:15,rec_pct:.60, fu:10, sess:25 },
 };
 const CLUBS   = ['Hudson Yards','Flatiron','Columbus Circle','Boston Back Bay','West Hollywood'];
+const CLUB_NUMBERS = {'Hudson Yards':'138','Flatiron':'102','Columbus Circle':'113','Boston Back Bay':'204','West Hollywood':'702'};
 const REGIONS = {'Hudson Yards':'NYC','Flatiron':'NYC','Columbus Circle':'NYC','Boston Back Bay':'Boston','West Hollywood':'SoCal'};
 const PTMS    = {'Hudson Yards':'M. Chen','Flatiron':'S. Kim','Columbus Circle':'J. Rodriguez','Boston Back Bay':'R. Torres','West Hollywood':'D. Park'};
 
@@ -65,22 +66,44 @@ function mkCoach(id,name,club,stage,tier,ho,profile){
     return {wk:'W'+(wi+1),
       eq_b:Math.round(b.eq_b*wm), eq_c:Math.round(Math.max(b.eq_c,1)*wm),
       cpt:Math.round(Math.max(b.cpts,1)*wm), sess:Math.round(Math.max(b.sess,1)*wm),
-      conv:Math.round(Math.max(b.ac,1)*0.35*wm), fu:Math.round(Math.max(b.fu,1)*wm),
-      rev:Math.round(b.rev*wm)};
+      conv:Math.round(Math.max(b.ac,1)*0.35*wm), fu:Math.round(Math.max(b.fu,1)*wm)};
   });
-  const L=hist[7],P=hist[6];
+  const L=hist[7];
   const si=RAMP_STAGES.indexOf(stage);
+  const pkgOptions=[6,12,24,48];
+  const pkgIndex=Math.min(3,Math.max(0,Math.floor((si+(profile==='excellent'?1:profile==='struggling'?-1:0))/2)));
   const ac=Math.round(Math.max(b.ac,0)*m*1.1+si*1.5*m);
   const rc=Math.round(ac*Math.min(b.rec_pct*m*1.1,0.95));
+  const confidence=Math.min(5,Math.max(1,Math.round((2.7+m*1.25+(profile==='struggling'?-0.4:0))*10)/10));
+  const supportMap={excellent:'Scaling repeatable habits',good:'Recurring client growth',average:'Equifit-to-CPT close',struggling:'Floor engagement'};
+  const focusMap={excellent:'Scale recurring clients and mentor one peer.',good:'Improve follow-up cadence and protect recurring schedules.',average:'Tighten consultation structure before the CPT close.',struggling:'Book two focused floor engagement blocks per day.'};
+  const challengeMap={excellent:'Prioritizing highest-value leads',good:'Keeping follow-up blocks consistent',average:'Converting Equifits into CPT starts',struggling:'Starting member conversations'};
   return {id,name,club,region:REGIONS[club],ptm:PTMS[club],tier,ramp_stage:stage,
     hire_date:'2025-'+String(12-ho).padStart(2,'0')+'-01',hist,
-    eq_b:L.eq_b, eq_c:L.eq_c, cpt:L.cpt, sess:L.sess, conv:L.conv, fu:L.fu, rev:L.rev,
-    monthly_rev:L.rev*4, ac, rc, rec_pct:ac>0?rc/ac:0,
+    eq_b:L.eq_b, eq_c:L.eq_c, cpt:L.cpt, sess:L.sess, conv:L.conv, fu:L.fu,
+    ac, rc, rec_pct:ac>0?rc/ac:0,
     retention:Math.min(.99,.72+m*.22), confirm:Math.min(.99,.76+m*.18),
-    cal_util:Math.min(.99,.62+m*.26), pkg:Math.round((800+si*150)*m),
+    cal_util:Math.min(.99,.62+m*.26), pkg:pkgOptions[pkgIndex],
     eq_conv:L.eq_b>0?Math.min(.95,(L.eq_c/L.eq_b)*(.7+m*.25)):0,
     cpt_rate:L.eq_c>0?Math.min(.9,(L.cpt/L.eq_c)*(.6+m*.3)):0,
-    rev_trend:L.rev-P.rev, self_assess:null};
+    self_assess:{
+      submitted:'May 13, 2026 · 11:16 AM',
+      cycleEnd:'May 31, 2026',
+      confidence,
+      conversations:Math.max(1,Math.round((si+1)*m)),
+      followUps:L.fu,
+      eqBooked:L.eq_b,
+      eqCompleted:L.eq_c,
+      cpts:L.cpt,
+      conversions:L.conv,
+      activeClients:ac,
+      recurringClients:rc,
+      supportArea:supportMap[profile],
+      biggestChallenge:challengeMap[profile],
+      leadSupport:profile==='struggling'?'YES - review top two lead conversations before next PDM':'No urgent lead support requested',
+      nextFocus:focusMap[profile],
+      selfScore:confidence>=4.4?'Strong':confidence>=3.6?'On Pace':'Needs Support'
+    }};
 }
 
 const RAW=[
@@ -116,7 +139,7 @@ const cap=(v,max,fl=0)=>Math.min(100,Math.max(fl,(v/Math.max(max,.01))*100));
 
 function scoreProd(c){
   const b=BENCHMARKS[c.ramp_stage];
-  return Math.round(cap(c.monthly_rev,b.rev*4)*.45+(b.ac>0?cap(c.ac,b.ac,10):70)*.30+(b.sess>0?cap(c.sess,b.sess,10):70)*.25);
+  return Math.round((b.ac>0?cap(c.ac,b.ac,10):70)*.55+(b.sess>0?cap(c.sess,b.sess,10):70)*.45);
 }
 function scoreProc(c){
   const b=BENCHMARKS[c.ramp_stage];
@@ -130,7 +153,6 @@ function riskOf(c){
   const b=BENCHMARKS[c.ramp_stage];
   if(c.eq_c===0&&c.ramp_stage!=='Week 1') return 'Red';
   if(c.conv===0&&RAMP_STAGES.indexOf(c.ramp_stage)>=2) return 'Red';
-  if(c.monthly_rev<b.rev*4*.6) return 'Red';
   if(b.rec_pct>0&&c.rec_pct<b.rec_pct*.7) return 'Yellow';
   if(c.confirm<.80) return 'Yellow';
   if(c.eq_b<b.eq_b*.7) return 'Yellow';
@@ -159,14 +181,13 @@ function recommend(c){
   if(c.eq_c>=b.eq_c) wins.push('Equifit cadence at or above benchmark');
   if(c.ac>=b.ac) wins.push('Active client count on pace');
   if(b.rec_pct>0&&c.rec_pct>=b.rec_pct) wins.push('Recurring rate meeting target');
-  if(c.monthly_rev>=b.rev*4*.9) wins.push('Revenue pace within target range');
   if(c.confirm>=.90) wins.push('High session confirmation rate');
   if(!wins.length) wins.push('Showing up and building baseline habits');
   if(c.eq_c<b.eq_c){opps.push('Equifit volume below target');focs.push('Equifit completion cadence');acts.push('Set daily floor conversation targets. Review booking approach.');}
   if(b.cpts>0&&c.cpt<b.cpts){opps.push('CPT close rate below benchmark');focs.push('Equifit-to-CPT conversion');acts.push('Role-play CPT close script. Review consultation structure.');}
   if(c.fu<b.fu){opps.push('Follow-up volume low');focs.push('Pipeline follow-up cadence');acts.push('Build a daily follow-up block. Set minimum outreach targets.');}
   if(b.rec_pct>0&&c.rec_pct<b.rec_pct*.8){opps.push('Recurring % below stage benchmark');focs.push('Recurring scheduling systems');acts.push('Audit current client scheduling. Introduce recurring language.');}
-  if(c.monthly_rev<b.rev*4*.75){opps.push('Revenue pacing below threshold');focs.push('Package optimization');acts.push('Review avg package size vs benchmark. Coach on value communication.');}
+  if(c.pkg<12&&RAMP_STAGES.indexOf(c.ramp_stage)>=2){opps.push('Average package purchase skews small');focs.push('Average client package purchase');acts.push('Review whether clients are landing in 6, 12, 24, or 48pk options. Coach on value communication.');}
   if(c.confirm<.82){opps.push('Session confirmation below 80%');focs.push('Calendar and professionalism');acts.push('Implement 24-hour session confirmation. Review no-show recovery.');}
   if(!opps.length) opps.push('No critical gaps — focus on scaling volume');
   return {wins,opps,focus:focs[0]||'Sustain current performance',action:acts[0]||'Identify the next scaling opportunity.'};
@@ -184,7 +205,7 @@ const atx=n=>['#374151','#1D4ED8','#065F46','#92400E','#5B21B6','#991B1B'][n.cha
 
 // ─── SVG CHARTS ──────────────────────────────
 function SvgLine({data,keys,colors,h=180,labels}){
-  const w=560,pad={t:10,r:10,b:28,l:36};
+  const w=560,pad={t:28,r:10,b:30,l:36};
   const iw=w-pad.l-pad.r, ih=h-pad.t-pad.b;
   const allVals=data.flatMap(d=>keys.map(k=>d[k]||0));
   const maxV=Math.max(...allVals,1)*1.1;
@@ -200,7 +221,7 @@ function SvgLine({data,keys,colors,h=180,labels}){
         </g>
       ))}
       {data.map((d,i)=>(
-        <text key={i} x={x(i)} y={h-6} textAnchor="middle" fontSize="10" fill="var(--text-muted)">{d.wk||d.label}</text>
+        <text key={i} x={x(i)} y={h-8} textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--text-2)">{d.wk||d.label}</text>
       ))}
       {keys.map((k,ki)=>{
         const pts=data.map((d,i)=>`${x(i)},${y(d[k]||0)}`).join(' ');
@@ -208,9 +229,9 @@ function SvgLine({data,keys,colors,h=180,labels}){
       })}
       {labels&&(
         <g>{keys.map((k,ki)=>(
-          <g key={k} transform={`translate(${pad.l+ki*90},${h-4})`}>
+          <g key={k} transform={`translate(${w-pad.r-260+ki*88},${10})`}>
             <rect x="0" y="-6" width="14" height="2" rx="1" fill={colors[ki]}/>
-            <text x="18" y="-2" fontSize="10" fill="var(--text-muted)">{labels[ki]}</text>
+            <text x="18" y="-2" fontSize="10" fontWeight="600" fill="var(--text-2)">{labels[ki]}</text>
           </g>
         ))}</g>
       )}
@@ -219,7 +240,7 @@ function SvgLine({data,keys,colors,h=180,labels}){
 }
 
 function SvgBar({data,h=185}){
-  const w=480,pad={t:10,r:10,b:28,l:36};
+  const w=480,pad={t:28,r:10,b:34,l:36};
   const iw=w-pad.l-pad.r, ih=h-pad.t-pad.b;
   const maxV=Math.max(...data.flatMap(d=>[d.actual,d.target]),1)*1.1;
   const bw=Math.floor(iw/data.length), gap=6, grpW=bw-gap;
@@ -238,11 +259,11 @@ function SvgBar({data,h=185}){
           <g key={i}>
             <rect x={cx-hw} y={y(d.target)} width={hw-1} height={th} rx="2" fill="var(--subtle)"/>
             <rect x={cx+1}  y={y(d.actual)} width={hw-1} height={ah} rx="2" fill="var(--text)"/>
-            <text x={cx} y={h-6} textAnchor="middle" fontSize="10" fill="var(--text-muted)">{d.m}</text>
+            <text x={cx} y={h-13} textAnchor="middle" fontSize="9" fill="var(--text-muted)">{d.m}</text>
           </g>
         );
       })}
-      <g transform={`translate(${pad.l},${h-4})`}>
+      <g transform={`translate(${w-138},${10})`}>
         <rect x="0" y="-6" width="12" height="8" rx="1" fill="var(--subtle)"/><text x="16" y="0" fontSize="10" fill="var(--text-muted)">Target</text>
         <rect x="65" y="-6" width="12" height="8" rx="1" fill="var(--text)"/><text x="81" y="0" fontSize="10" fill="var(--text-muted)">Actual</text>
       </g>
@@ -295,6 +316,44 @@ function SvgDonut({data,size=160}){
         <path key={i} d={s.path} fill="none" stroke={s.color} strokeWidth={strokeW} strokeLinecap="butt"/>
       ))}
       <text x={cx} y={cy+5} textAnchor="middle" fontSize={size*.14} fontWeight="700" fill="var(--text)">{total}</text>
+    </svg>
+  );
+}
+
+function SvgPyramid({data,w=300,h=170,selectedStage,onSelect}){
+  const ordered=[...data].reverse();
+  const levels=Math.max(ordered.length,1);
+  const maxW=w*.68, minW=w*.22, levelH=h/levels, pyramidCx=w*.58;
+  const GRAYS=['var(--donut-5)','var(--donut-4)','var(--donut-3)','var(--donut-2)','var(--donut-1)','var(--donut-0)'];
+  const selected=ordered.find(d=>d.label===selectedStage)||ordered[ordered.length-1];
+  const selectedIndex=ordered.findIndex(d=>d.label===selected.label);
+  const arrowY=selectedIndex*levelH+levelH/2;
+  const selectedBotW=minW+(maxW-minW)*((selectedIndex+1)/levels);
+  const arrowEnd=pyramidCx-selectedBotW/2-8;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{width:'100%',height:h,overflow:'visible'}}>
+      <g>
+        <path d={`M 22 ${arrowY} L ${arrowEnd} ${arrowY}`} stroke="var(--text)" strokeWidth="2" strokeLinecap="round"/>
+        <path d={`M ${arrowEnd} ${arrowY} l -6 -5 v10 z`} fill="var(--text)"/>
+        <text x="18" y={arrowY-9} textAnchor="start" fontSize="10" fontWeight="700" fill="var(--text)">{selected.v}</text>
+        <text x="18" y={arrowY+14} textAnchor="start" fontSize="9" fill="var(--text-muted)">coaches</text>
+      </g>
+      {ordered.map((d,i)=>{
+        const topW=minW+(maxW-minW)*(i/levels);
+        const botW=minW+(maxW-minW)*((i+1)/levels);
+        const y=i*levelH;
+        const xTop=pyramidCx-topW/2, xBot=pyramidCx-botW/2;
+        const isSelected=d.label===selected.label;
+        return (
+          <g key={d.label} onClick={()=>onSelect&&onSelect(d.label)} style={{cursor:'pointer',opacity:isSelected?1:.78}}>
+            <polygon points={`${xTop},${y+2} ${xTop+topW},${y+2} ${xBot+botW},${y+levelH-2} ${xBot},${y+levelH-2}`}
+              fill={GRAYS[i%GRAYS.length]} stroke={isSelected?'var(--text)':'var(--surface)'} strokeWidth={isSelected?'2.5':'2'}/>
+            <text x={pyramidCx} y={y+levelH*.55} textAnchor="middle" dominantBaseline="middle" fontSize="10" fontWeight="700" fill={i<2?'var(--text)':'var(--surface)'}>
+              {d.label}
+            </text>
+          </g>
+        );
+      })}
     </svg>
   );
 }
@@ -418,17 +477,21 @@ function Sidebar({view,onNav,dark,onToggleTheme}){
 
 // ─── PORTFOLIO VIEW ───────────────────────────
 function PortfolioView({coaches,setView,setClub,setCoach}){
+  const [selectedStage,setSelectedStage]=useState('Week 1');
   const cs=useMemo(()=>CLUBS.map(club=>{
     const cc=coaches.filter(c=>c.club===club);
-    return {club,n:cc.length,rev:cc.reduce((s,c)=>s+c.monthly_rev,0),
+    return {club,n:cc.length,active:cc.reduce((s,c)=>s+c.ac,0),
       score:cc.length?Math.round(cc.reduce((s,c)=>s+c.score,0)/cc.length):0,
       risk:cc.filter(c=>c.risk==='Red').length,region:REGIONS[club]};
   }),[coaches]);
-  const tot={rev:coaches.reduce((s,c)=>s+c.monthly_rev,0),
+  const tot={active:coaches.reduce((s,c)=>s+c.ac,0),
+    recurring:coaches.reduce((s,c)=>s+c.rc,0),
     score:Math.round(coaches.reduce((s,c)=>s+c.score,0)/coaches.length),
     red:coaches.filter(c=>c.risk==='Red').length,
     warn:coaches.filter(c=>c.risk==='Yellow').length};
   const rdist=RAMP_STAGES.map(s=>({label:s,v:coaches.filter(c=>c.ramp_stage===s).length})).filter(r=>r.v>0);
+  const selectedRamp=rdist.find(r=>r.label===selectedStage)||rdist[0];
+  const rampCoaches=coaches.filter(c=>c.ramp_stage===(selectedRamp?.label||selectedStage));
   const top5=[...coaches].sort((a,b)=>b.score-a.score).slice(0,5);
   const alerts=coaches.filter(c=>c.risk!=='Green').sort((a,b)=>a.score-b.score).slice(0,5);
   return (
@@ -439,10 +502,10 @@ function PortfolioView({coaches,setView,setClub,setCoach}){
         <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:4}}>{coaches.length} active coaches · {CLUBS.length} clubs · Week of May 12, 2026</div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:22}}>
-        <KCard label="Monthly Revenue Pace"   value={f$(tot.rev)}    sub={coaches.length+' coaches'}/>
         <KCard label="Portfolio Health Score" value={tot.score}      sub={sl(tot.score)}/>
         <KCard label="At-Risk Coaches"        value={tot.red}        sub={tot.warn+' additional on watch'}/>
         <KCard label="Active Coaches"         value={coaches.length} sub="All ramp stages"/>
+        <KCard label="Recurring Clients"      value={tot.recurring+' / '+tot.active} sub={fp(tot.recurring/Math.max(tot.active,1))}/>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 320px',gap:16,marginBottom:20}}>
         <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'20px'}}>
@@ -458,7 +521,7 @@ function PortfolioView({coaches,setView,setClub,setCoach}){
                   <ScoreRing score={s.score} size={40} stroke={4}/>
                 </div>
                 <div style={{display:'flex',gap:16}}>
-                  <div><div style={{fontSize:'10px',color:'var(--text-muted)'}}>Rev Pace</div><div style={{fontSize:'13px',fontWeight:600,color:'var(--text)'}}>{f$(s.rev)}</div></div>
+                  <div><div style={{fontSize:'10px',color:'var(--text-muted)'}}>Active Clients</div><div style={{fontSize:'13px',fontWeight:600,color:'var(--text)'}}>{s.active}</div></div>
                   <div><div style={{fontSize:'10px',color:'var(--text-muted)'}}>At Risk</div><div style={{fontSize:'13px',fontWeight:600,color:s.risk>0?'#DC2626':'#16A34A'}}>{s.risk}</div></div>
                 </div>
               </button>
@@ -468,24 +531,39 @@ function PortfolioView({coaches,setView,setClub,setCoach}){
         <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'20px'}}>
           <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:12}}>Ramp Stage Distribution</div>
           <div style={{display:'flex',justifyContent:'center',marginBottom:12}}>
-            <SvgDonut data={rdist} size={150}/>
+            <SvgPyramid data={rdist} selectedStage={selectedRamp?.label} onSelect={setSelectedStage}/>
           </div>
           <div>
             {rdist.map((r,i)=>{
               const GRAYS=['var(--donut-0)','var(--donut-1)','var(--donut-2)','var(--donut-3)','var(--donut-4)','var(--donut-5)'];
+              const isSelected=r.label===(selectedRamp?.label);
               return (
-                <div key={r.label} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'4px 0',borderBottom:'1px solid var(--row-sep)'}}>
+                <button key={r.label} onClick={()=>setSelectedStage(r.label)}
+                  style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'4px 0',border:'none',borderBottom:'1px solid var(--row-sep)',background:isSelected?'var(--subtle)':'transparent',cursor:'pointer',borderRadius:isSelected?5:0,outline:'none'}}>
                   <div style={{display:'flex',alignItems:'center',gap:7}}>
                     <div style={{width:7,height:7,borderRadius:'50%',background:GRAYS[i%6]}}/>
-                    <span style={{fontSize:'11px',color:'var(--text-sec)'}}>{r.label}</span>
+                    <span style={{fontSize:'11px',color:'var(--text-sec)',fontWeight:isSelected?700:400}}>{r.label}</span>
                   </div>
                   <div style={{display:'flex',gap:10}}>
                     <span style={{fontSize:'12px',fontWeight:600,color:'var(--text)'}}>{r.v}</span>
                     <span style={{fontSize:'10px',color:'var(--text-muted)',width:28,textAlign:'right'}}>{Math.round(r.v/coaches.length*100)}%</span>
                   </div>
-                </div>
+                </button>
               );
             })}
+          </div>
+          <div style={{marginTop:14,paddingTop:12,borderTop:'1px solid var(--subtle)'}}>
+            <div style={{fontSize:'9px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:8}}>{selectedRamp?.label} Coaches</div>
+            {rampCoaches.map(c=>(
+              <button key={c.id} onClick={()=>{setCoach(c);setView('coach');}}
+                style={{width:'100%',display:'flex',alignItems:'center',gap:8,padding:'5px 0',border:'none',background:'transparent',cursor:'pointer',textAlign:'left'}}>
+                <Av name={c.name} size={24}/>
+                <div style={{minWidth:0}}>
+                  <div style={{fontSize:'11px',fontWeight:600,color:'var(--text)'}}>{c.name}</div>
+                  <div style={{fontSize:'10px',color:'var(--text-muted)'}}>{c.club}</div>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -537,8 +615,15 @@ function PortfolioView({coaches,setView,setClub,setCoach}){
 function ClubView({all,club,setClub,setCoach,setView}){
   const [sf,setSf]=useState('All');
   const [q,setQ]=useState('');
+  const [clubSearch,setClubSearch]=useState(`${club} · ${CLUB_NUMBERS[club]}`);
+  useEffect(()=>{setClubSearch(`${club} · ${CLUB_NUMBERS[club]}`);},[club]);
+  function handleClubSearch(v){
+    setClubSearch(v);
+    const s=v.toLowerCase().trim();
+    const match=CLUBS.find(cl=>cl.toLowerCase().includes(s)||CLUB_NUMBERS[cl].includes(s));
+    if(match) setClub(match);
+  }
   const coaches=useMemo(()=>all.filter(c=>c.club===club&&(sf==='All'||c.ramp_stage===sf)&&(!q||c.name.toLowerCase().includes(q.toLowerCase()))),[all,club,sf,q]);
-  const totRev=coaches.reduce((s,c)=>s+c.monthly_rev,0);
   const avgScore=coaches.length?Math.round(coaches.reduce((s,c)=>s+c.score,0)/coaches.length):0;
   const trendData=useMemo(()=>{
     const cc=all.filter(c=>c.club===club);
@@ -561,24 +646,30 @@ function ClubView({all,club,setClub,setCoach,setView}){
           <h1 style={{fontSize:'24px',fontWeight:700,color:'var(--text)',letterSpacing:'-.02em'}}>PT Department · {club}</h1>
           <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:4}}>{REGIONS[club]} · PTM: {PTMS[club]} · Avg Score: {avgScore}</div>
         </div>
-        <div style={{display:'flex',flexWrap:'wrap',gap:4,justifyContent:'flex-end',maxWidth:400}}>
-          {CLUBS.map(cl=>(
-            <button key={cl} onClick={()=>setClub(cl)}
-              style={{padding:'4px 10px',borderRadius:6,fontSize:'11px',cursor:'pointer',fontWeight:500,transition:'all .1s',
-                border:cl===club?'1px solid var(--text)':'1px solid var(--border)',background:cl===club?'var(--text)':'var(--surface)',color:cl===club?'var(--app-bg)':'var(--text-2)'}}>
-              {cl}
-            </button>
-          ))}
+        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:5,width:310}}>
+          <label htmlFor="club-search" style={{fontSize:'9px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)'}}>Club Search</label>
+          <div style={{position:'relative',width:'100%'}}>
+            <input id="club-search" list="club-options" value={clubSearch} onChange={e=>handleClubSearch(e.target.value)} onBlur={()=>setClubSearch(`${club} · ${CLUB_NUMBERS[club]}`)}
+              placeholder="Type club name or number"
+              style={{width:'100%',padding:'8px 32px 8px 10px',border:'1px solid var(--border)',borderRadius:7,fontSize:'12px',outline:'none',color:'var(--text-sec)',background:'var(--surface)'}}/>
+            <svg width="14" height="14" fill="none" stroke="var(--text-muted)" strokeWidth="2" viewBox="0 0 24 24" style={{position:'absolute',right:10,top:9,pointerEvents:'none'}}>
+              <path d="M6 9l6 6 6-6"/>
+            </svg>
+            <datalist id="club-options">
+              {CLUBS.map(cl=><option key={cl} value={`${cl} · ${CLUB_NUMBERS[cl]}`}>{CLUB_NUMBERS[cl]}</option>)}
+            </datalist>
+          </div>
+          <div style={{fontSize:'10px',color:'var(--text-muted)'}}>Selected club #{CLUB_NUMBERS[club]}</div>
         </div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:10,marginBottom:18}}>
         <KCard label="Coaches"       value={coaches.length}/>
+        <KCard label="Equifits Booked" value={coaches.reduce((s,c)=>s+c.eq_b,0)}/>
         <KCard label="Equifits"      value={coaches.reduce((s,c)=>s+c.eq_c,0)}/>
         <KCard label="CPTs"          value={coaches.reduce((s,c)=>s+c.cpt,0)}/>
         <KCard label="New Clients"   value={coaches.reduce((s,c)=>s+c.conv,0)}/>
         <KCard label="Active Clients"value={coaches.reduce((s,c)=>s+c.ac,0)}/>
         <KCard label="Recurring"     value={coaches.reduce((s,c)=>s+c.rc,0)}/>
-        <KCard label="Monthly Rev"   value={f$(totRev)}/>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 300px',gap:14,marginBottom:18}}>
         <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'20px'}}>
@@ -619,7 +710,7 @@ function ClubView({all,club,setClub,setCoach,setView}){
         <table style={{width:'100%',borderCollapse:'collapse'}}>
           <thead>
             <tr style={{borderBottom:'1px solid var(--subtle)'}}>
-              {['Coach','Stage','Overall','Prod','Proc','Pers','Equifits','CPTs','New Clients','Rev Pace','Status',''].map(h=>(
+              {['Coach','Stage','Overall','Prod','Proc','Pers','Equifits','CPTs','New Clients','Avg Package','Status',''].map(h=>(
                 <th key={h} style={{padding:'7px 10px',textAlign:'left',fontSize:'9px',fontWeight:600,letterSpacing:'.08em',textTransform:'uppercase',color:'var(--text-muted)',whiteSpace:'nowrap'}}>{h}</th>
               ))}
             </tr>
@@ -646,7 +737,7 @@ function ClubView({all,club,setClub,setCoach,setView}){
                   <td style={{padding:'9px 10px',fontSize:'12px',color:'var(--text-sec)',fontWeight:500}}>{c.eq_c}<span style={{fontSize:'10px',color:'var(--text-dim)'}}>/{BENCHMARKS[c.ramp_stage].eq_c}</span></td>
                   <td style={{padding:'9px 10px',fontSize:'12px',color:'var(--text-sec)',fontWeight:500}}>{c.cpt}<span style={{fontSize:'10px',color:'var(--text-dim)'}}>/{BENCHMARKS[c.ramp_stage].cpts}</span></td>
                   <td style={{padding:'9px 10px',fontSize:'12px',color:'var(--text-sec)',fontWeight:500}}>{c.conv}</td>
-                  <td style={{padding:'9px 10px',fontSize:'12px',color:'var(--text-sec)',fontWeight:500}}>{f$(c.monthly_rev)}</td>
+                  <td style={{padding:'9px 10px',fontSize:'12px',color:'var(--text-sec)',fontWeight:500}}>{c.pkg}pk</td>
                   <td style={{padding:'9px 10px'}}>
                     <div style={{display:'flex',alignItems:'center',gap:5}}>
                       <div style={{width:6,height:6,borderRadius:'50%',background:rd(c.risk)}}/>
@@ -696,7 +787,7 @@ function CoachView({coach,all,setCoach,setView,setClub}){
       </div>
     );
   }
-  const dg=diagnose(coach), rec=recommend(coach), b=BENCHMARKS[coach.ramp_stage];
+  const dg=diagnose(coach), rec=recommend(coach), b=BENCHMARKS[coach.ramp_stage], assess=coach.self_assess;
   const TABS=[{id:'overview',l:'Overview'},{id:'process',l:'Activity'},{id:'trends',l:'Trends'},{id:'coaching',l:'Coaching'},{id:'assess',l:'Self-Assessment'}];
   const diagBg=dg.col==='green'?'#F0FDF4':dg.col==='amber'?'#FFFBEB':'#FEF2F2';
   const diagBdr=dg.col==='green'?'#BBF7D0':dg.col==='amber'?'#FDE68A':'#FECACA';
@@ -741,17 +832,17 @@ function CoachView({coach,all,setCoach,setView,setClub}){
         <div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:18}}>
             <BCard label="Production" score={coach.prod} weight="50%"
-              metrics={[{l:'Monthly Rev Pace',v:f$(coach.monthly_rev),b:f$(b.rev*4)},{l:'Active Clients',v:coach.ac,b:b.ac},{l:'Sessions / Wk',v:coach.sess,b:b.sess},{l:'Rev / Session',v:coach.sess>0?f$(Math.round(coach.rev/Math.max(coach.sess,1))):'—'}]}/>
+              metrics={[{l:'Active Clients',v:coach.ac,b:b.ac},{l:'Sessions / Wk',v:coach.sess,b:b.sess},{l:'New Clients',v:coach.conv},{l:'Avg Client Package',v:coach.pkg+'pk'}]}/>
             <BCard label="Process" score={coach.proc} weight="30%"
               metrics={[{l:'Equifits Completed',v:coach.eq_c,b:b.eq_c},{l:'CPTs Completed',v:coach.cpt,b:b.cpts},{l:'Follow-Ups',v:coach.fu,b:b.fu},{l:'Equifits Booked',v:coach.eq_b,b:b.eq_b}]}/>
             <BCard label="Persistence" score={coach.pers} weight="20%"
               metrics={[{l:'Recurring Clients',v:coach.rc,b:Math.round(b.ac*b.rec_pct)},{l:'Recurring %',v:fp(coach.rec_pct),b:fp(b.rec_pct)},{l:'Client Retention',v:fp(coach.retention)},{l:'Session Confirm',v:fp(coach.confirm)}]}/>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10}}>
-            <KCard label="Weekly Revenue"   value={f$(coach.rev)}   trend={f$(Math.abs(coach.rev_trend))} trendUp={coach.rev_trend>=0}/>
+            <KCard label="Completed Sessions" value={coach.sess}/>
             <KCard label="Active Clients"   value={coach.ac}/>
             <KCard label="Recurring"        value={coach.rc+' / '+coach.ac} sub={fp(coach.rec_pct)}/>
-            <KCard label="Avg Package Size" value={f$(coach.pkg)}/>
+            <KCard label="Avg Client Package" value={coach.pkg+'pk'}/>
             <KCard label="Calendar Util"    value={fp(coach.cal_util)}/>
           </div>
         </div>
@@ -769,8 +860,8 @@ function CoachView({coach,all,setCoach,setView,setClub}){
             <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'20px'}}>
               <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14}}>Activity vs Benchmark</div>
               <SvgBar data={[
-                {m:'Eq Booked', actual:coach.eq_b, target:b.eq_b},
-                {m:'Eq Compl.', actual:coach.eq_c, target:Math.max(b.eq_c,1)},
+                {m:'Booked',    actual:coach.eq_b, target:b.eq_b},
+                {m:'Completed', actual:coach.eq_c, target:Math.max(b.eq_c,1)},
                 {m:'CPTs',      actual:coach.cpt,  target:Math.max(b.cpts,1)},
                 {m:'Follow-Ups',actual:coach.fu,   target:b.fu},
                 {m:'Sessions',  actual:coach.sess, target:Math.max(b.sess,1)},
@@ -800,12 +891,12 @@ function CoachView({coach,all,setCoach,setView,setClub}){
       {tab==='trends'&&(
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
           <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'20px'}}>
-            <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14}}>Revenue Trend</div>
-            <SvgLine data={coach.hist.map(h=>({...h,wk:h.wk}))} keys={['rev']} colors={['var(--chart-bar)']} h={165}/>
+            <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14}}>Completed Session Trend</div>
+            <SvgLine data={coach.hist.map(h=>({...h,wk:h.wk}))} keys={['sess']} colors={['var(--chart-bar)']} h={165}/>
           </div>
           <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'20px'}}>
-            <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14}}>Session Volume</div>
-            <SvgLine data={coach.hist} keys={['sess']} colors={['var(--chart-bar)']} h={165}/>
+            <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14}}>Follow-Up Volume</div>
+            <SvgLine data={coach.hist} keys={['fu']} colors={['var(--chart-bar)']} h={165}/>
           </div>
           <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'20px'}}>
             <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14}}>Activity Trend</div>
@@ -866,23 +957,70 @@ function CoachView({coach,all,setCoach,setView,setClub}){
       )}
 
       {tab==='assess'&&(
-        <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'40px',textAlign:'center'}}>
-          <div style={{width:44,height:44,borderRadius:10,background:'var(--subtle)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px'}}>
-            <svg width="20" height="20" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" viewBox="0 0 24 24">
-              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12h.01M12 16h.01"/>
-            </svg>
-          </div>
-          <div style={{fontSize:'16px',fontWeight:700,color:'var(--text)',marginBottom:7}}>Self-Assessment Integration</div>
-          <div style={{fontSize:'13px',color:'var(--text-2)',lineHeight:1.6,maxWidth:380,margin:'0 auto 22px'}}>
-            Weekly self-assessments will appear here after integration. This layer overlays subjective signals on Salesforce KPIs to support richer PDM conversations.
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,maxWidth:560,margin:'0 auto'}}>
-            {['Confidence','Biggest Challenge','Coaching Focus','Energy Level','Self-Rated Score'].map(f=>(
-              <div key={f} style={{background:'var(--subtle)',border:'1px dashed var(--border)',borderRadius:8,padding:'12px 8px'}}>
-                <div style={{fontSize:'9px',color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'.07em',textAlign:'center'}}>{f}</div>
-                <div style={{fontSize:'12px',color:'var(--text-dim)',marginTop:5,textAlign:'center'}}>—</div>
+        <div style={{display:'grid',gridTemplateColumns:'1.05fr .95fr',gap:14}}>
+          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'22px'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
+              <div>
+                <div style={{fontSize:'10px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:4}}>Submitted Intake</div>
+                <div style={{fontSize:'17px',fontWeight:700,color:'var(--text)'}}>Weekly PDM Self-Assessment</div>
+                <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:3}}>Submitted {assess.submitted} · Cycle ends {assess.cycleEnd}</div>
               </div>
-            ))}
+              <div style={{width:54,height:54,borderRadius:'50%',background:'var(--subtle)',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column'}}>
+                <div style={{fontSize:'18px',fontWeight:800,color:'var(--text)'}}>{assess.confidence}</div>
+                <div style={{fontSize:'9px',color:'var(--text-muted)'}}>/ 5</div>
+              </div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:18}}>
+              {[
+                {l:'Member Conversations',v:assess.conversations},
+                {l:'Follow-Ups',v:assess.followUps},
+                {l:'Equifits Booked',v:assess.eqBooked},
+                {l:'CPTs Completed',v:assess.cpts},
+                {l:'New Conversions',v:assess.conversions},
+                {l:'Active Clients',v:assess.activeClients},
+                {l:'Recurring Clients',v:assess.recurringClients},
+                {l:'Self-Rated Score',v:assess.selfScore},
+              ].map(m=>(
+                <div key={m.l} style={{background:'var(--surface-alt)',border:'1px solid var(--subtle)',borderRadius:8,padding:'10px'}}>
+                  <div style={{fontSize:'9px',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:5}}>{m.l}</div>
+                  <div style={{fontSize:'16px',fontWeight:800,color:'var(--text)'}}>{m.v}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <div style={{background:'var(--subtle)',borderRadius:8,padding:'12px'}}>
+                <div style={{fontSize:'9px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:6}}>Biggest Challenge</div>
+                <div style={{fontSize:'13px',lineHeight:1.5,color:'var(--text-sec)'}}>{assess.biggestChallenge}</div>
+              </div>
+              <div style={{background:'var(--subtle)',borderRadius:8,padding:'12px'}}>
+                <div style={{fontSize:'9px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:6}}>Support Need</div>
+                <div style={{fontSize:'13px',lineHeight:1.5,color:'var(--text-sec)'}}>{assess.supportArea}</div>
+              </div>
+            </div>
+          </div>
+          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'22px'}}>
+            <div style={{fontSize:'10px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14}}>PDM Conversation Prep</div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:'9px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:6}}>Lead / Client Support</div>
+              <div style={{fontSize:'13px',lineHeight:1.55,color:'var(--text-sec)',padding:'12px',background:'var(--subtle)',borderRadius:8}}>{assess.leadSupport}</div>
+            </div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:'9px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:6}}>Main Focus Next Week</div>
+              <div style={{fontSize:'15px',fontWeight:700,lineHeight:1.45,color:'var(--text)'}}>{assess.nextFocus}</div>
+            </div>
+            <div style={{borderTop:'1px solid var(--subtle)',paddingTop:14}}>
+              <div style={{fontSize:'9px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:8}}>Proof Cross-Check</div>
+              {[
+                ['Self-reported Equifits',assess.eqCompleted,coach.eq_c],
+                ['Self-reported CPTs',assess.cpts,coach.cpt],
+                ['Self-reported Active Clients',assess.activeClients,coach.ac],
+              ].map(row=>(
+                <div key={row[0]} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:'1px solid var(--row-sep)'}}>
+                  <span style={{fontSize:'12px',color:'var(--text-sec)'}}>{row[0]}</span>
+                  <span style={{fontSize:'12px',fontWeight:700,color:row[1]===row[2]?'#16A34A':'#D97706'}}>{row[1]} / SF {row[2]}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
