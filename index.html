@@ -147,6 +147,29 @@ const PTMS = {
   'Sports Club Boston':'R. Torres','West Hollywood':'D. Park',
 };
 
+// ─── COMPENSATION ─────────────────────────────
+const PAY_PERIODS=['Jan 25','Feb 08','Feb 22','Mar 08','Mar 22','Apr 05','Apr 19','May 03'];
+const RATE_TABLE={
+  'Coach':  [{lo:0,hi:34,r:40.50},{lo:35,hi:39,r:46.00},{lo:40,hi:44,r:61.50},{lo:45,hi:54,r:65.00},{lo:55,hi:64,r:69.00},{lo:65,hi:Infinity,r:72.50}],
+  'Coach+': [{lo:0,hi:34,r:50.00},{lo:35,hi:39,r:55.00},{lo:40,hi:44,r:70.00},{lo:45,hi:54,r:74.50},{lo:55,hi:64,r:79.50},{lo:65,hi:Infinity,r:83.00}],
+  'Coach X':[{lo:0,hi:34,r:69.50},{lo:35,hi:39,r:74.50},{lo:40,hi:44,r:85.50},{lo:45,hi:54,r:90.50},{lo:55,hi:64,r:94.50},{lo:65,hi:Infinity,r:98.00}],
+};
+function getSessionRate(tier,sess){
+  const t=RATE_TABLE[tier]||RATE_TABLE['Coach'];
+  return (t.find(b=>Math.floor(sess)<=b.hi)||t[t.length-1]).r;
+}
+function getNextRate(tier,sess){
+  const t=RATE_TABLE[tier]||RATE_TABLE['Coach'];
+  const s=Math.floor(sess);
+  const idx=t.findIndex(b=>s<=b.hi);
+  if(idx<0||idx>=t.length-1)return null;
+  return {rate:t[idx+1].r,at:t[idx+1].lo,remaining:t[idx+1].lo-s,currentLo:t[idx].lo,currentHi:t[idx].hi};
+}
+function calcPay(tier,sess,eq,cpt){
+  const r=getSessionRate(tier,sess);
+  return {rate:r,pay:Math.round((sess||0)*r+((eq||0)*25)+((cpt||0)*25))};
+}
+
 // ─── DATA GENERATOR ──────────────────────────
 let _s=42; const rand=()=>{_s=(_s*9301+49297)%233280;return _s/233280;};
 const noise=()=>0.82+rand()*0.36;
@@ -951,7 +974,7 @@ function ClubView({all,club,setClub,setCoach,setView}){
 }
 
 // ─── COACH VIEW ───────────────────────────────
-function CoachView({coach,all,setCoach,setView,setClub}){
+function CoachView({coach,all,setCoach,setView,setClub,periodIdx=PAY_PERIODS.length-1,setPeriodIdx}){
   const [tab,setTab]=useState('overview');
   if(!coach){
     return (
@@ -962,7 +985,7 @@ function CoachView({coach,all,setCoach,setView,setClub}){
         </div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
           {all.map(c=>(
-            <button key={c.id} onClick={()=>setCoach(c)}
+            <button key={c.id} onClick={()=>{setCoach(c);setView('coach');}}
               style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'14px',cursor:'pointer',textAlign:'left',transition:'box-shadow .12s'}}
               onMouseEnter={e=>e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,.06)'}
               onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
@@ -981,6 +1004,14 @@ function CoachView({coach,all,setCoach,setView,setClub}){
     );
   }
   const dg=diagnose(coach), rec=recommend(coach), b=BENCHMARKS[coach.ramp_stage];
+  const pd=coach.hist&&coach.hist[periodIdx]?coach.hist[periodIdx]:{sess:coach.sess||0,eq_c:coach.eq_c||0,cpt:coach.cpt||0,eq_b:coach.eq_b||0,fu:coach.fu||0};
+  const comp=calcPay(coach.tier,pd.sess||0,pd.eq_c||0,pd.cpt||0);
+  const nextRate=getNextRate(coach.tier,pd.sess||0);
+  const periodLabel=PAY_PERIODS[periodIdx]||'Current';
+  const periodSessions=Math.floor(pd.sess||0);
+  const tierTable=RATE_TABLE[coach.tier]||RATE_TABLE['Coach'];
+  const currentBracket=tierTable.find(bk=>periodSessions>=bk.lo&&(bk.hi===Infinity||periodSessions<=bk.hi))||tierTable[tierTable.length-1];
+  const bracketLabel=currentBracket.hi===Infinity?'65+':currentBracket.lo+'-'+currentBracket.hi;
   const TABS=[{id:'overview',l:'Overview'},{id:'process',l:'Activity'},{id:'trends',l:'Trends'},{id:'coaching',l:'Coaching'},{id:'assess',l:'Self-Assessment'}];
   const diagBg=dg.col==='green'?'#F0FDF4':dg.col==='amber'?'#FFFBEB':'#FEF2F2';
   const diagBdr=dg.col==='green'?'#BBF7D0':dg.col==='amber'?'#FDE68A':'#FECACA';
@@ -1011,6 +1042,21 @@ function CoachView({coach,all,setCoach,setView,setClub}){
           </div>
         </div>
       </div>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16,flexWrap:'wrap'}}>
+        <span style={{fontSize:'10px',fontWeight:600,letterSpacing:'.08em',textTransform:'uppercase',color:'var(--text-muted)',flexShrink:0}}>Pay Period</span>
+        <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+          {PAY_PERIODS.map((p,i)=>(
+            <button key={p} onClick={()=>setPeriodIdx&&setPeriodIdx(i)}
+              style={{padding:'3px 10px',fontSize:'11px',fontWeight:i===periodIdx?600:400,
+                background:i===periodIdx?'var(--text)':'var(--subtle)',
+                color:i===periodIdx?'var(--surface)':'var(--text-2)',
+                border:'1px solid '+(i===periodIdx?'var(--text)':'var(--border)'),
+                borderRadius:20,cursor:'pointer',transition:'all .1s',lineHeight:'18px'}}>
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
       <div style={{display:'flex',borderBottom:'1px solid var(--border)',marginBottom:20}}>
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)}
@@ -1025,18 +1071,113 @@ function CoachView({coach,all,setCoach,setView,setClub}){
         <div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:18}}>
             <BCard label="Production" score={coach.prod} weight="50%"
-              metrics={[{l:'Monthly Rev Pace',v:f$(coach.monthly_rev),b:f$(b.rev*4)},{l:'Active Clients',v:coach.ac,b:b.ac},{l:'Sessions / Wk',v:coach.sess,b:b.sess},{l:'Rev / Session',v:coach.sess>0?f$(Math.round(coach.rev/Math.max(coach.sess,1))):'—'}]}/>
+              metrics={[{l:'Pay Period Pay',v:'$'+comp.pay.toLocaleString()},{l:'Active Clients',v:coach.ac,b:b.ac},{l:'Sessions / Pay Period',v:pd.sess,b:b.sess},{l:'Unlocked Session Rate',v:'$'+comp.rate.toFixed(2)},{l:'Equifits Completed',v:pd.eq_c},{l:'CPTs Completed',v:pd.cpt}]}/>
             <BCard label="Process" score={coach.proc} weight="30%"
               metrics={[{l:'Equifits Completed',v:coach.eq_c,b:b.eq_c},{l:'CPTs Completed',v:coach.cpt,b:b.cpts},{l:'Follow-Ups',v:coach.fu,b:b.fu},{l:'Equifits Booked',v:coach.eq_b,b:b.eq_b}]}/>
             <BCard label="Persistence" score={coach.pers} weight="20%"
               metrics={[{l:'Recurring Clients',v:coach.rc,b:Math.round(b.ac*b.rec_pct)},{l:'Recurring %',v:fp(coach.rec_pct),b:fp(b.rec_pct)},{l:'Client Retention',v:fp(coach.retention)},{l:'Session Confirm',v:fp(coach.confirm)}]}/>
           </div>
+          {/* ── COMPENSATION MODULE ── */}
+          <div style={{marginBottom:14,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'20px 24px'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
+              <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)'}}>Current Pay Period Compensation</div>
+              <span style={{fontSize:'11px',color:'var(--text-2)',background:'var(--subtle)',padding:'2px 10px',borderRadius:20,fontWeight:500,border:'1px solid var(--border)'}}>{periodLabel}</span>
+            </div>
+            {/* Top stat row */}
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:18}}>
+              <div style={{background:'var(--subtle)',borderRadius:9,padding:'13px 15px'}}>
+                <div style={{fontSize:'9px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:5}}>Tier</div>
+                <div style={{fontSize:'16px',fontWeight:700,color:'var(--text)'}}>{coach.tier}</div>
+              </div>
+              <div style={{background:'var(--subtle)',borderRadius:9,padding:'13px 15px'}}>
+                <div style={{fontSize:'9px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:5}}>Session Rate</div>
+                <div style={{fontSize:'16px',fontWeight:700,color:'var(--text)'}}>${comp.rate.toFixed(2)}</div>
+                <div style={{fontSize:'10px',color:'var(--text-2)',marginTop:2}}>{periodSessions} sessions · {bracketLabel} bracket</div>
+              </div>
+              <div style={{background:'var(--text)',borderRadius:9,padding:'13px 15px'}}>
+                <div style={{fontSize:'9px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--surface)',opacity:.7,marginBottom:5}}>Est. Pay Period Payout</div>
+                <div style={{fontSize:'20px',fontWeight:700,color:'var(--surface)'}}>${comp.pay.toLocaleString()}</div>
+              </div>
+            </div>
+            {/* Pay breakdown */}
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20,paddingBottom:20,borderBottom:'1px solid var(--border)'}}>
+              {[
+                {label:'Sessions',count:pd.sess,rate:comp.rate,total:Math.round((pd.sess||0)*comp.rate)},
+                {label:'Equifits',count:pd.eq_c,rate:25,total:(pd.eq_c||0)*25},
+                {label:'CPTs',count:pd.cpt,rate:25,total:(pd.cpt||0)*25},
+              ].map(item=>(
+                <div key={item.label} style={{padding:'10px 0'}}>
+                  <div style={{fontSize:'9px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:4}}>{item.label}</div>
+                  <div style={{fontSize:'15px',fontWeight:700,color:'var(--text)',marginBottom:2}}>{item.count}</div>
+                  <div style={{fontSize:'10px',color:'var(--text-2)'}}><span style={{fontWeight:500}}>× ${typeof item.rate==='number'&&item.rate===comp.rate?comp.rate.toFixed(2):item.rate}</span> = <span style={{fontWeight:600,color:'var(--text-sec)'}}>${item.total.toLocaleString()}</span></div>
+                </div>
+              ))}
+            </div>
+            {/* Progression Tracker */}
+            <div>
+              <div style={{fontSize:'9px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:12}}>Session Rate Progression</div>
+              {nextRate ? (
+                <div>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                    <span style={{fontSize:'12px',color:'var(--text-sec)'}}>
+                      <strong style={{color:'var(--text)'}}>{nextRate.remaining}</strong> more sessions unlock <strong style={{color:'var(--text)'}}>${nextRate.rate.toFixed(2)}/session</strong>
+                    </span>
+                    <span style={{fontSize:'11px',color:'var(--text-muted)',fontWeight:500}}>{periodSessions} / {nextRate.at}</span>
+                  </div>
+                  <div style={{height:5,background:'var(--subtle)',borderRadius:3,overflow:'hidden',marginBottom:14}}>
+                    <div style={{height:'100%',background:'var(--text)',borderRadius:3,transition:'width .6s ease',
+                      width:Math.min(((periodSessions-nextRate.currentLo)/Math.max(nextRate.at-nextRate.currentLo,1))*100,100)+'%'}}/>
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:4}}>
+                    {(RATE_TABLE[coach.tier]||RATE_TABLE['Coach']).map((bracket,i)=>{
+                      const isCurrent=periodSessions>=bracket.lo&&(bracket.hi===Infinity||periodSessions<=bracket.hi);
+                      const isUnlocked=bracket.hi!==Infinity&&periodSessions>bracket.hi;
+                      return (
+                        <div key={i} style={{textAlign:'center',padding:'6px 4px',borderRadius:6,
+                          background:isCurrent?'var(--text)':isUnlocked?'var(--subtle)':'transparent',
+                          border:'1px solid '+(isCurrent?'var(--text)':isUnlocked?'var(--border)':'var(--subtle)')}}>
+                          <div style={{fontSize:'8px',fontWeight:600,color:isCurrent?'var(--surface)':isUnlocked?'var(--text-muted)':'var(--text-dim)',marginBottom:2}}>
+                            {bracket.hi===Infinity?'65+':bracket.lo+'-'+bracket.hi}
+                          </div>
+                          <div style={{fontSize:'9px',fontWeight:700,color:isCurrent?'var(--surface)':isUnlocked?'var(--text-sec)':'var(--text-dim)'}}>
+                            ${bracket.r}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ):(
+                <div>
+                  <div style={{display:'flex',alignItems:'center',gap:8,padding:'10px 14px',background:'var(--subtle)',borderRadius:8,marginBottom:14}}>
+                    <div style={{width:8,height:8,borderRadius:'50%',background:'#16A34A',flexShrink:0}}/>
+                    <span style={{fontSize:'12px',color:'var(--text-sec)'}}>Maximum rate achieved — <strong>${comp.rate.toFixed(2)}/session</strong> (65+ sessions)</span>
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:4}}>
+                    {(RATE_TABLE[coach.tier]||RATE_TABLE['Coach']).map((bracket,i)=>(
+                      <div key={i} style={{textAlign:'center',padding:'6px 4px',borderRadius:6,
+                        background:bracket.hi===Infinity?'var(--text)':'var(--subtle)',
+                        border:'1px solid '+(bracket.hi===Infinity?'var(--text)':'var(--border)')}}>
+                        <div style={{fontSize:'8px',fontWeight:600,color:bracket.hi===Infinity?'var(--surface)':'var(--text-muted)',marginBottom:2}}>
+                          {bracket.hi===Infinity?'65+':bracket.lo+'-'+bracket.hi}
+                        </div>
+                        <div style={{fontSize:'9px',fontWeight:700,color:bracket.hi===Infinity?'var(--surface)':'var(--text-sec)'}}>
+                          ${bracket.r}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          {/* ── KPI STRIP ── */}
           <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10}}>
-            <KCard label="Weekly Revenue"   value={f$(coach.rev)}   trend={f$(Math.abs(coach.rev_trend))} trendUp={coach.rev_trend>=0}/>
             <KCard label="Active Clients"   value={coach.ac}/>
             <KCard label="Recurring"        value={coach.rc+' / '+coach.ac} sub={fp(coach.rec_pct)}/>
             <KCard label="Avg Program" value={coach.pkg+'pk'}/>
             <KCard label="Calendar Util"    value={fp(coach.cal_util)}/>
+            <KCard label="Session Confirm"  value={fp(coach.confirm)}/>
           </div>
         </div>
       )}
@@ -1180,6 +1321,7 @@ function App(){
   const [club,setClub]=useState(CLUBS[0]);
   const [coach,setCoach]=useState(null);
   const [dark,setDark]=useState(false);
+  const [periodIdx,setPeriodIdx]=useState(PAY_PERIODS.length-1);
   useEffect(()=>{
     document.documentElement.setAttribute('data-theme',dark?'dark':'light');
   },[dark]);
@@ -1190,7 +1332,7 @@ function App(){
       <main style={{marginLeft:196,flex:1,overflowY:'auto'}}>
         {view==='portfolio'&&<PortfolioView coaches={COACHES} setView={setView} setClub={setClub} setCoach={setCoach}/>}
         {view==='club'&&<ClubView all={COACHES} club={club} setClub={setClub} setCoach={setCoach} setView={setView}/>}
-        {view==='coach'&&<CoachView coach={coach} all={COACHES} setCoach={setCoach} setView={setView} setClub={setClub}/>}
+        {view==='coach'&&<CoachView coach={coach} all={COACHES} setCoach={setCoach} setView={setView} setClub={setClub} periodIdx={periodIdx} setPeriodIdx={setPeriodIdx}/>}
       </main>
     </div>
   );
