@@ -237,7 +237,9 @@ function riskOf(c){
 }
 function enrich(c){
   const prod=scoreProd(c),proc=scoreProc(c),pers=scorePers(c);
-  return {...c,prod,proc,pers,score:Math.round(prod*.5+proc*.3+pers*.2),risk:riskOf(c)};
+  const rev=c.rev!=null?c.rev:Math.round((c.monthly_rev||0)/2);
+  const rev_trend=c.rev_trend!=null?c.rev_trend:0;
+  return {...c,prod,proc,pers,score:Math.round(prod*.5+proc*.3+pers*.2),risk:riskOf(c),rev,rev_trend};
 }
 const COACHES=RAW.map(enrich);
 
@@ -272,7 +274,7 @@ function recommend(c){
 }
 
 // ─── UTILS ───────────────────────────────────
-const f$=v=>v>=10000?'$'+(v/1000).toFixed(1)+'k':'$'+v.toLocaleString();
+const f$=v=>{if(v==null||isNaN(+v))return '—';const n=+v;return n>=10000?'$'+(n/1000).toFixed(1)+'k':'$'+n.toLocaleString()};
 const fp=v=>Math.round(v*100)+'%';
 const sc=s=>s>=80?'#16A34A':s>=60?'#D97706':'#DC2626';
 const sl=s=>s>=80?'Strong':s>=60?'On Pace':'Needs Attention';
@@ -429,13 +431,17 @@ function ScoreRing({score,size=64,stroke=6}){
   );
 }
 
-function KCard({label,value,sub,trend,trendUp}){
+function KCard({label,value,sub,trend,trendUp,onClick,active}){
   return (
-    <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'14px 16px',minWidth:0}}>
+    <div onClick={onClick}
+      style={{background:'var(--surface)',border:active?'2px solid var(--text)':'1px solid var(--border)',borderRadius:10,padding:active?'13px 15px':'14px 16px',minWidth:0,cursor:onClick?'pointer':'default',transition:'border .1s,background .1s'}}
+      onMouseEnter={e=>{if(onClick)e.currentTarget.style.background='var(--subtle)'}}
+      onMouseLeave={e=>{if(onClick)e.currentTarget.style.background='var(--surface)'}}>
       <div style={{fontSize:'10px',fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:6}}>{label}</div>
       <div style={{fontSize:'22px',fontWeight:700,color:'var(--text)',lineHeight:1,marginBottom:3}}>{value}</div>
       {sub&&<div style={{fontSize:'11px',color:'var(--text-2)'}}>{sub}</div>}
       {trend!==undefined&&<div style={{fontSize:'11px',color:trendUp?'#16A34A':'#DC2626',marginTop:3,fontWeight:500}}>{trendUp?'▲':'▼'} {trend}</div>}
+      {onClick&&<div style={{fontSize:'9px',color:'var(--text-dim)',marginTop:5,letterSpacing:'.06em'}}>CLICK TO {active?'CLOSE':'DRILL DOWN'}</div>}
     </div>
   );
 }
@@ -555,6 +561,16 @@ function PortfolioView({coaches,setView,setClub,setCoach}){
     warn:coaches.filter(c=>c.risk==='Yellow').length};
   const rdist=RAMP_STAGES.map(s=>({label:s,v:coaches.filter(c=>c.ramp_stage===s).length})).filter(r=>r.v>0);
   const [selectedStage,setSelectedStage]=useState(null);
+  const [activeKpi,setActiveKpi]=useState(null);
+  const totRc=useMemo(()=>coaches.reduce((s,c)=>s+c.rc,0),[coaches]);
+  const totAc=useMemo(()=>coaches.reduce((s,c)=>s+c.ac,0),[coaches]);
+  const kpiCoaches=useMemo(()=>{
+    if(activeKpi==='health')return scored.slice(0,12);
+    if(activeKpi==='at-risk')return [...coaches].filter(c=>c.risk!=='Green').sort((a,b)=>a.score-b.score);
+    if(activeKpi==='active')return [...coaches].sort((a,b)=>b.score-a.score).slice(0,24);
+    if(activeKpi==='recurring')return [...coaches].filter(c=>c.rc>0).sort((a,b)=>b.rc-a.rc).slice(0,24);
+    return [];
+  },[coaches,activeKpi,scored]);
   const selectedRamp=rdist.find(r=>r.label===selectedStage)||rdist[rdist.length-1];
   const rampCoaches=coaches.filter(c=>c.ramp_stage===(selectedRamp?.label||selectedStage));
   const top5=[...coaches].sort((a,b)=>b.score-a.score).slice(0,5);
@@ -566,12 +582,65 @@ function PortfolioView({coaches,setView,setClub,setCoach}){
         <h1 style={{fontSize:'24px',fontWeight:700,color:'var(--text)',letterSpacing:'-.02em'}}>PT Portfolio Overview</h1>
         <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:4}}>{coaches.length} active coaches · {CLUBS.length} clubs · Week of May 12, 2026</div>
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:22}}>
-        <KCard label="Monthly Revenue Pace"   value={f$(tot.rev)}    sub={coaches.length+' coaches'}/>
-        <KCard label="Portfolio Health Score" value={tot.score}      sub={sl(tot.score)}/>
-        <KCard label="At-Risk Coaches"        value={tot.red}        sub={tot.warn+' additional on watch'}/>
-        <KCard label="Active Coaches"         value={coaches.length} sub="All ramp stages"/>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:activeKpi?12:22}}>
+        <KCard label="Portfolio Health Score" value={tot.score}      sub={sl(tot.score)}           onClick={()=>setActiveKpi(k=>k==='health'?null:'health')}     active={activeKpi==='health'}/>
+        <KCard label="At-Risk Coaches"        value={tot.red}        sub={tot.warn+' on watch'}    onClick={()=>setActiveKpi(k=>k==='at-risk'?null:'at-risk')}   active={activeKpi==='at-risk'}/>
+        <KCard label="Active Coaches"         value={coaches.length} sub="All ramp stages"         onClick={()=>setActiveKpi(k=>k==='active'?null:'active')}     active={activeKpi==='active'}/>
+        <KCard label="Recurring Clients"      value={totRc}          sub={totAc>0?fp(totRc/totAc)+' of active':coaches.length+' coaches'} onClick={()=>setActiveKpi(k=>k==='recurring'?null:'recurring')} active={activeKpi==='recurring'}/>
       </div>
+      {activeKpi&&kpiCoaches.length>0&&(
+        <div className="fade-in" style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'16px 20px',marginBottom:20}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+            <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)'}}>
+              {activeKpi==='health'?'Top Clubs — Health Score':activeKpi==='at-risk'?`At-Risk Coaches (${kpiCoaches.length})`:activeKpi==='active'?`Active Coaches (${kpiCoaches.length})`:`Recurring Client Leaders (${kpiCoaches.length})`}
+            </div>
+            <button onClick={()=>setActiveKpi(null)} style={{fontSize:'11px',color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',padding:'2px 6px'}}>✕ Close</button>
+          </div>
+          {activeKpi==='health'?(
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
+              {kpiCoaches.map(s=>(
+                <button key={s.club} onClick={()=>{setClub(s.club);setView('club');}}
+                  style={{background:'var(--surface-alt)',border:'1px solid var(--subtle)',borderRadius:9,padding:'10px 12px',cursor:'pointer',textAlign:'left'}}
+                  onMouseEnter={e=>e.currentTarget.style.background='var(--subtle)'}
+                  onMouseLeave={e=>e.currentTarget.style.background='var(--surface-alt)'}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <div style={{fontSize:'12px',fontWeight:600,color:'var(--text)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',flex:1,paddingRight:6}}>{s.club}</div>
+                    <ScoreRing score={s.score} size={28} stroke={3}/>
+                  </div>
+                  <div style={{fontSize:'10px',color:'var(--text-muted)',marginTop:3}}>{s.region} · {s.n} coach{s.n!==1?'es':''}</div>
+                </button>
+              ))}
+            </div>
+          ):(
+            <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:2}}>
+              {kpiCoaches.map((c,i)=>(
+                <button key={c.id} onClick={()=>{setCoach(c);setView('coach');}}
+                  style={{display:'flex',alignItems:'center',gap:10,padding:'7px 10px',borderRadius:7,cursor:'pointer',background:'none',border:'none',textAlign:'left'}}
+                  onMouseEnter={e=>e.currentTarget.style.background='var(--subtle)'}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <span style={{fontSize:'10px',fontWeight:600,color:'var(--text-dim)',width:20,flexShrink:0}}>{i+1}</span>
+                  <Av name={c.name} size={26}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:'12px',fontWeight:600,color:'var(--text)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{c.name}</div>
+                    <div style={{fontSize:'10px',color:'var(--text-muted)'}}>{c.club} · {c.ramp_stage}</div>
+                  </div>
+                  {activeKpi==='recurring'?(
+                    <div style={{textAlign:'right',flexShrink:0}}>
+                      <div style={{fontSize:'12px',fontWeight:700,color:'var(--text)'}}>{c.rc}</div>
+                      <div style={{fontSize:'9px',color:'var(--text-muted)'}}>{fp(c.rec_pct)} rec</div>
+                    </div>
+                  ):(
+                    <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+                      <div style={{width:6,height:6,borderRadius:'50%',background:rd(c.risk)}}/>
+                      <ScoreRing score={c.score} size={28} stroke={3}/>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <div style={{display:'grid',gridTemplateColumns:'1fr 320px',gap:16,marginBottom:20}}>
         <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'20px'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
@@ -789,14 +858,11 @@ function ClubView({all,club,setClub,setCoach,setView}){
         </div>
         <ClubSearchDropdown club={club} setClub={setClub}/>
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:10,marginBottom:18}}>
-        <KCard label="Coaches"       value={coaches.length}/>
-        <KCard label="Equifits"      value={coaches.reduce((s,c)=>s+c.eq_c,0)}/>
-        <KCard label="CPTs"          value={coaches.reduce((s,c)=>s+c.cpt,0)}/>
-        <KCard label="New Clients"   value={coaches.reduce((s,c)=>s+c.conv,0)}/>
-        <KCard label="Active Clients"value={coaches.reduce((s,c)=>s+c.ac,0)}/>
-        <KCard label="Recurring"     value={coaches.reduce((s,c)=>s+c.rc,0)}/>
-        <KCard label="Monthly Rev"   value={f$(totRev)}/>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:18}}>
+        <KCard label="Coaches"           value={coaches.length}/>
+        <KCard label="Active Clients"    value={coaches.reduce((s,c)=>s+c.ac,0)}/>
+        <KCard label="Recurring Clients" value={coaches.reduce((s,c)=>s+c.rc,0)} sub={(()=>{const ac=coaches.reduce((s,c)=>s+c.ac,0);return ac>0?fp(coaches.reduce((s,c)=>s+c.rc,0)/ac)+' of active':''})()}/>
+        <KCard label="Club Health Score" value={avgScore} sub={sl(avgScore)}/>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 300px',gap:14,marginBottom:18}}>
         <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'20px'}}>
