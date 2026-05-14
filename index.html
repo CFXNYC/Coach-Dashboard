@@ -569,10 +569,12 @@ function PortfolioView({coaches,setView,setClub,setCoach}){
       risk:cc.filter(c=>c.risk==='Red').length,region:REGIONS[club]};
   }),[coaches]);
   const scored=useMemo(()=>cs.filter(s=>s.n>0).sort((a,b)=>b.score-a.score),[cs]);
-  const topTier=scored.slice(0,4);
-  const rest=scored.slice(4);
-  const needTier=rest.length>=4?rest.slice(-4):[];
-  const midTier=(rest.length>=4?rest.slice(0,rest.length-4):rest).slice(0,4);
+  const p30=Math.max(1,Math.floor(scored.length*.30));
+  const p70=Math.max(p30+1,Math.floor(scored.length*.70));
+  const topTier=scored.slice(0,p30);
+  const midTier=scored.slice(p30,p70);
+  const needTier=scored.slice(p70);
+  const [expandedTiers,setExpandedTiers]=useState({});
   const searchMatches=useMemo(()=>{
     if(!cpQ)return[];
     const q=cpQ.toLowerCase();
@@ -603,7 +605,7 @@ function PortfolioView({coaches,setView,setClub,setCoach}){
       <div style={{marginBottom:22}}>
         <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:4}}>Organization</div>
         <h1 style={{fontSize:'24px',fontWeight:700,color:'var(--text)',letterSpacing:'-.02em'}}>PT Portfolio Overview</h1>
-        <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:4}}>{coaches.length} active coaches · {CLUBS.length} clubs · Week of May 12, 2026</div>
+        <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:4}}>{coaches.length} active coaches · {scored.length} clubs · Pay Period: May 3, 2026</div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:activeKpi?12:22}}>
         <KCard label="Portfolio Health Score" value={tot.score}      sub={sl(tot.score)}           onClick={()=>setActiveKpi(k=>k==='health'?null:'health')}     active={activeKpi==='health'}/>
@@ -704,7 +706,11 @@ function PortfolioView({coaches,setView,setClub,setCoach}){
                 {label:'Top',color:'#16A34A',tier:topTier},
                 {label:'Intermediate',color:'#D97706',tier:midTier},
                 {label:'Needs Attention',color:'#DC2626',tier:needTier},
-              ].map(({label,color,tier})=>tier.length===0?null:(
+              ].map(({label,color,tier})=>tier.length===0?null:(()=>{
+                const isExpanded=expandedTiers[label];
+                const LIMIT=8;
+                const visible=isExpanded?tier:tier.slice(0,LIMIT);
+                return (
                 <div key={label}>
                   <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:9}}>
                     <div style={{width:8,height:8,borderRadius:'50%',background:color}}/>
@@ -712,7 +718,7 @@ function PortfolioView({coaches,setView,setClub,setCoach}){
                     <span style={{fontSize:'10px',color:'var(--text-muted)'}}>{tier.length} club{tier.length!==1?'s':''}</span>
                   </div>
                   <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
-                    {tier.map(s=>(
+                    {visible.map(s=>(
                       <button key={s.club} onClick={()=>{setClub(s.club);setView('club');}}
                         style={{background:'var(--surface-alt)',border:'1px solid var(--subtle)',borderRadius:9,padding:'12px 13px',cursor:'pointer',textAlign:'left',borderLeft:`3px solid ${color}`}}
                         onMouseEnter={e=>e.currentTarget.style.background='var(--subtle)'}
@@ -731,8 +737,15 @@ function PortfolioView({coaches,setView,setClub,setCoach}){
                       </button>
                     ))}
                   </div>
+                  {tier.length>LIMIT&&(
+                    <button onClick={()=>setExpandedTiers(et=>({...et,[label]:!isExpanded}))}
+                      style={{marginTop:8,fontSize:'11px',color:'var(--text-muted)',background:'none',border:'1px solid var(--border)',borderRadius:6,padding:'4px 12px',cursor:'pointer',display:'block'}}>
+                      {isExpanded?'Show less ▲':`Show all ${tier.length} clubs ▼`}
+                    </button>
+                  )}
                 </div>
-              ))}
+                );
+              })())}
             </div>
           )}
         </div>
@@ -854,17 +867,19 @@ function ClubSearchDropdown({club,setClub}){
 // ─── CLUB VIEW ────────────────────────────────
 function ClubView({all,club,setClub,setCoach,setView}){
   const [sf,setSf]=useState('All');
+  const [tf,setTf]=useState('All');
   const [q,setQ]=useState('');
-  const coaches=useMemo(()=>all.filter(c=>c.club===club&&(sf==='All'||c.ramp_stage===sf)&&(!q||c.name.toLowerCase().includes(q.toLowerCase()))),[all,club,sf,q]);
+  const coaches=useMemo(()=>all.filter(c=>c.club===club&&(sf==='All'||c.ramp_stage===sf)&&(tf==='All'||c.tier===tf)&&(!q||c.name.toLowerCase().includes(q.toLowerCase()))),[all,club,sf,tf,q]);
   const totRev=coaches.reduce((s,c)=>s+c.monthly_rev,0);
   const avgScore=coaches.length?Math.round(coaches.reduce((s,c)=>s+c.score,0)/coaches.length):0;
   const trendData=useMemo(()=>{
-    const cc=all.filter(c=>c.club===club);
-    return Array.from({length:8},(_,wi)=>({wk:'W'+(wi+1),
+    const cc=all.filter(c=>c.club===club&&(tf==='All'||c.tier===tf));
+    const PAY_LABELS=['Jan 25','Feb 08','Feb 22','Mar 08','Mar 22','Apr 05','Apr 19','May 03'];
+    return Array.from({length:8},(_,wi)=>({wk:PAY_LABELS[wi],
       eq_c:Math.round(cc.reduce((s,c)=>s+(c.hist[wi]?.eq_c||0),0)/Math.max(cc.length,1)*10)/10,
       cpt: Math.round(cc.reduce((s,c)=>s+(c.hist[wi]?.cpt||0),0)/Math.max(cc.length,1)*10)/10,
       conv:Math.round(cc.reduce((s,c)=>s+(c.hist[wi]?.conv||0),0)/Math.max(cc.length,1)*10)/10}));
-  },[all,club]);
+  },[all,club,tf]);
   const funnel=[
     {stage:'Equifits Booked',   v:coaches.reduce((s,c)=>s+c.eq_b,0)},
     {stage:'Equifits Completed',v:coaches.reduce((s,c)=>s+c.eq_c,0)},
@@ -877,7 +892,7 @@ function ClubView({all,club,setClub,setCoach,setView}){
         <div>
           <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:4}}>Club View</div>
           <h1 style={{fontSize:'24px',fontWeight:700,color:'var(--text)',letterSpacing:'-.02em'}}>PT Department · {club}</h1>
-          <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:4}}>{REGIONS[club]} · PTM: {PTMS[club]||'—'} · Avg Score: {avgScore}</div>
+          <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:4}}>{REGIONS[club]} · PTM: {PTMS[club]||'—'} · Avg Score: {avgScore}{tf!=='All'?' · Filtered: '+tf:''}</div>
         </div>
         <ClubSearchDropdown club={club} setClub={setClub}/>
       </div>
@@ -916,6 +931,13 @@ function ClubView({all,club,setClub,setCoach,setView}){
           <div style={{display:'flex',gap:8}}>
             <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search coaches…"
               style={{padding:'5px 10px',border:'1px solid var(--border)',borderRadius:6,fontSize:'12px',outline:'none',color:'var(--text-sec)',width:150}}/>
+            <select value={tf} onChange={e=>setTf(e.target.value)}
+              style={{padding:'5px 10px',border:'1px solid var(--border)',borderRadius:6,fontSize:'12px',outline:'none',color:'var(--text-sec)',background:'var(--surface)',cursor:'pointer'}}>
+              <option value="All">All Levels</option>
+              <option value="Coach">Coach</option>
+              <option value="Coach+">Coach+</option>
+              <option value="Coach X">Coach X</option>
+            </select>
             <select value={sf} onChange={e=>setSf(e.target.value)}
               style={{padding:'5px 10px',border:'1px solid var(--border)',borderRadius:6,fontSize:'12px',outline:'none',color:'var(--text-sec)',background:'var(--surface)',cursor:'pointer'}}>
               <option value="All">All Stages</option>
