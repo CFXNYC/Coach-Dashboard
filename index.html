@@ -7,6 +7,7 @@
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="real_coaches.js"></script>
 <style>
 :root{
   --app-bg:#F9FAFB;--surface:#FFFFFF;--surface-alt:#FAFAFA;--subtle:#F3F4F6;--row-sep:#F9FAFB;
@@ -41,18 +42,110 @@ const { useState, useMemo, useRef, useEffect } = React;
 
 // ─── CONSTANTS ───────────────────────────────
 const RAMP_STAGES = ['Week 1','Week 2','Week 3','Week 4','Month 2','Month 3'];
+// Benchmarks calibrated to real Equinox PT data (biweekly pay periods, May 2026)
+// rev = biweekly revenue target; monthly_rev = rev × 4
 const BENCHMARKS = {
-  'Week 1': {eq_b:1,eq_c:0, cpts:0, ac:0, rec_pct:0,   fu:2,  sess:0  },
-  'Week 2': {eq_b:2,eq_c:1, cpts:1, ac:1, rec_pct:0,   fu:3,  sess:3  },
-  'Week 3': {eq_b:3,eq_c:2, cpts:2, ac:2, rec_pct:.25, fu:5,  sess:6  },
-  'Week 4': {eq_b:4,eq_c:3, cpts:4, ac:4, rec_pct:.40, fu:6,  sess:10 },
-  'Month 2':{eq_b:6,eq_c:5, cpts:8, ac:8, rec_pct:.50, fu:8,  sess:16 },
-  'Month 3':{eq_b:10,eq_c:8,cpts:15,ac:15,rec_pct:.60, fu:10, sess:25 },
+  'Week 1': {eq_b:0, eq_c:0, cpts:0, ac:0,  rec_pct:0,   fu:1,  sess:0,  rev:375 },
+  'Week 2': {eq_b:1, eq_c:0, cpts:0, ac:3,  rec_pct:0,   fu:2,  sess:6,  rev:500 },
+  'Week 3': {eq_b:1, eq_c:1, cpts:1, ac:6,  rec_pct:.20, fu:3,  sess:10, rev:750 },
+  'Week 4': {eq_b:2, eq_c:1, cpts:1, ac:9,  rec_pct:.35, fu:4,  sess:14, rev:1000},
+  'Month 2':{eq_b:2, eq_c:2, cpts:2, ac:13, rec_pct:.50, fu:5,  sess:18, rev:1375},
+  'Month 3':{eq_b:3, eq_c:2, cpts:2, ac:20, rec_pct:.60, fu:6,  sess:28, rev:2000},
 };
-const CLUBS   = ['Hudson Yards','Flatiron','Columbus Circle','Boston Back Bay','West Hollywood'];
-const CLUB_NUMBERS = {'Hudson Yards':'138','Flatiron':'102','Columbus Circle':'113','Boston Back Bay':'204','West Hollywood':'702'};
-const REGIONS = {'Hudson Yards':'NYC','Flatiron':'NYC','Columbus Circle':'NYC','Boston Back Bay':'Boston','West Hollywood':'SoCal'};
-const PTMS    = {'Hudson Yards':'M. Chen','Flatiron':'S. Kim','Columbus Circle':'J. Rodriguez','Boston Back Bay':'R. Torres','West Hollywood':'D. Park'};
+const CLUBS = [
+  'Anthem Row','Armonk','Austin','Aventura','Bay Street','Beale Street','Berkeley','Bethesda',
+  'Beverly Hills','Bishopsgate','Bloomfield Hills','Bond Street','Brickell','Brickell Heights',
+  'Brookfield Place','Brooklyn Heights','Bryant Park','Century City','Chestnut Hill',
+  'Columbus Circle','Coral Gables','Culver City','Darien','Dartmouth Street','Domino',
+  'Downtown LA','Downtown San Diego','Dumbo','E Madison Avenue',"E St. James's",
+  'East 43rd Street','East 44th Street','East 53rd Street','East 54th Street','East 61st Street',
+  'East 63rd Street','East 74th Street','East 85th Street','East 92nd Street','Encino',
+  'Equinox Hamptons','Flatiron','Franklin Street','Fulton Market','Glendale','Gold Coast',
+  'Gramercy','Great Neck','Greenwich Avenue','Greenwich Connecticut','High Line','Highland Park',
+  'Hollywood','Hudson Square','Hudson Yards','Huntington Beach','Kensington','La Costa',
+  'Lincoln Common','Lincoln Park','Mamaroneck','Marina del Rey','Miracle Mile','Newport Beach',
+  'Nomad','Orchard Street','Palo Alto','Palos Verdes','Paramus','Park Avenue','Pasadena',
+  'Pine Street','Plano','Printing House','Rainier Square','Rittenhouse','River Oaks',
+  'Rockefeller Center','Roslyn','San Mateo','San Ramon','Santa Monica','Santa Monica East',
+  'Scarsdale','Seaport','SoHo','South Bay','South Beach','Southport','Sports Club Boston',
+  'Sports Club Los Angeles','Sports Club New York','Sports Club Orange County',
+  'Sports Club San Francisco','Sports Club Washington DC','Studio City','Summit','The Loop',
+  'Tribeca','Tysons Corner','Union Street','Van Mission','Wall Street','West 50th Street',
+  'West 76th Street','West 92nd Street','West Georgia Street','West Hollywood','West Palm Beach',
+  'Westlake Village','Westwood','Williamsburg','Wisconsin Ave','Woodbury','Woodland Hills','Yorkville',
+];
+const CLUB_NUMBERS = {
+  'Anthem Row':'254','Armonk':'149','Austin':'456','Aventura':'303','Bay Street':'852',
+  'Beale Street':'727','Berkeley':'719','Bethesda':'252','Beverly Hills':'712','Bishopsgate':'875',
+  'Bloomfield Hills':'420','Bond Street':'135','Brickell':'304','Brickell Heights':'305',
+  'Brookfield Place':'128','Brooklyn Heights':'130','Bryant Park':'127','Century City':'750',
+  'Chestnut Hill':'203','Columbus Circle':'113','Coral Gables':'302','Culver City':'752',
+  'Darien':'141','Dartmouth Street':'201','Domino':'161','Downtown LA':'715',
+  'Downtown San Diego':'735','Dumbo':'134','E Madison Avenue':'139',"E St. James's":'873',
+  'East 43rd Street':'108','East 44th Street':'109','East 53rd Street':'133','East 54th Street':'106',
+  'East 61st Street':'132','East 63rd Street':'105','East 74th Street':'117','East 85th Street':'104',
+  'East 92nd Street':'129','Encino':'714','Equinox Hamptons':'4147','Flatiron':'102',
+  'Franklin Street':'202','Fulton Market':'406','Glendale':'718','Gold Coast':'402',
+  'Gramercy':'136','Great Neck':'145','Greenwich Avenue':'112','Greenwich Connecticut':'148',
+  'High Line':'116','Highland Park':'451','Hollywood':'717','Hudson Square':'162',
+  'Hudson Yards':'138','Huntington Beach':'733','Kensington':'871','La Costa':'734',
+  'Lincoln Common':'405','Lincoln Park':'401','Mamaroneck':'144','Marina del Rey':'711',
+  'Miracle Mile':'751','Newport Beach':'730','Nomad':'160','Orchard Street':'122',
+  'Palo Alto':'722','Palos Verdes':'705','Paramus':'151','Park Avenue':'115','Pasadena':'701',
+  'Pine Street':'720','Plano':'455','Printing House':'124','Rainier Square':'790',
+  'Rittenhouse':'240','River Oaks':'454','Rockefeller Center':'126','Roslyn':'143',
+  'San Mateo':'721','San Ramon':'725','Santa Monica':'703','Santa Monica East':'753',
+  'Scarsdale':'140','Seaport':'206','SoHo':'114','South Bay':'708','South Beach':'301',
+  'Southport':'155','Sports Club Boston':'204','Sports Club Los Angeles':'713',
+  'Sports Club New York':'131','Sports Club Orange County':'732','Sports Club San Francisco':'724',
+  'Sports Club Washington DC':'253','Studio City':'709','Summit':'150','The Loop':'404',
+  'Tribeca':'111','Tysons Corner':'251','Union Street':'723','Van Mission':'726',
+  'Wall Street':'110','West 50th Street':'107','West 76th Street':'121','West 92nd Street':'103',
+  'West Georgia Street':'860','West Hollywood':'702','West Palm Beach':'308',
+  'Westlake Village':'716','Westwood':'704','Williamsburg':'137','Wisconsin Ave':'256',
+  'Woodbury':'142','Woodland Hills':'707','Yorkville':'854',
+};
+const REGIONS = {
+  'Anthem Row':'Northeast','Armonk':'NYC Metro','Austin':'Texas','Aventura':'Florida',
+  'Bay Street':'Canada','Beale Street':'South','Berkeley':'Bay Area','Bethesda':'Northeast',
+  'Beverly Hills':'SoCal','Bishopsgate':'London','Bloomfield Hills':'Midwest','Bond Street':'NYC Metro',
+  'Brickell':'Florida','Brickell Heights':'Florida','Brookfield Place':'NYC Metro',
+  'Brooklyn Heights':'NYC Metro','Bryant Park':'NYC Metro','Century City':'SoCal',
+  'Chestnut Hill':'Boston','Columbus Circle':'NYC Metro','Coral Gables':'Florida',
+  'Culver City':'SoCal','Darien':'NYC Metro','Dartmouth Street':'Boston','Domino':'NYC Metro',
+  'Downtown LA':'SoCal','Downtown San Diego':'SoCal','Dumbo':'NYC Metro',
+  'E Madison Avenue':'NYC Metro',"E St. James's":'London','East 43rd Street':'NYC Metro',
+  'East 44th Street':'NYC Metro','East 53rd Street':'NYC Metro','East 54th Street':'NYC Metro',
+  'East 61st Street':'NYC Metro','East 63rd Street':'NYC Metro','East 74th Street':'NYC Metro',
+  'East 85th Street':'NYC Metro','East 92nd Street':'NYC Metro','Encino':'SoCal',
+  'Equinox Hamptons':'NYC Metro','Flatiron':'NYC Metro','Franklin Street':'Boston',
+  'Fulton Market':'Chicago','Glendale':'SoCal','Gold Coast':'Chicago','Gramercy':'NYC Metro',
+  'Great Neck':'NYC Metro','Greenwich Avenue':'NYC Metro','Greenwich Connecticut':'NYC Metro',
+  'High Line':'NYC Metro','Highland Park':'Chicago','Hollywood':'SoCal','Hudson Square':'NYC Metro',
+  'Hudson Yards':'NYC Metro','Huntington Beach':'SoCal','Kensington':'London','La Costa':'SoCal',
+  'Lincoln Common':'Chicago','Lincoln Park':'Chicago','Mamaroneck':'NYC Metro',
+  'Marina del Rey':'SoCal','Miracle Mile':'SoCal','Newport Beach':'SoCal','Nomad':'NYC Metro',
+  'Orchard Street':'NYC Metro','Palo Alto':'Bay Area','Palos Verdes':'SoCal','Paramus':'NYC Metro',
+  'Park Avenue':'NYC Metro','Pasadena':'SoCal','Pine Street':'Bay Area','Plano':'Texas',
+  'Printing House':'NYC Metro','Rainier Square':'Pacific NW','Rittenhouse':'Northeast',
+  'River Oaks':'Texas','Rockefeller Center':'NYC Metro','Roslyn':'NYC Metro',
+  'San Mateo':'Bay Area','San Ramon':'Bay Area','Santa Monica':'SoCal','Santa Monica East':'SoCal',
+  'Scarsdale':'NYC Metro','Seaport':'Boston','SoHo':'NYC Metro','South Bay':'SoCal',
+  'South Beach':'Florida','Southport':'NYC Metro','Sports Club Boston':'Boston',
+  'Sports Club Los Angeles':'SoCal','Sports Club New York':'NYC Metro',
+  'Sports Club Orange County':'SoCal','Sports Club San Francisco':'Bay Area',
+  'Sports Club Washington DC':'Northeast','Studio City':'SoCal','Summit':'NYC Metro',
+  'The Loop':'Chicago','Tribeca':'NYC Metro','Tysons Corner':'Northeast','Union Street':'Bay Area',
+  'Van Mission':'Bay Area','Wall Street':'NYC Metro','West 50th Street':'NYC Metro',
+  'West 76th Street':'NYC Metro','West 92nd Street':'NYC Metro','West Georgia Street':'Canada',
+  'West Hollywood':'SoCal','West Palm Beach':'Florida','Westlake Village':'SoCal',
+  'Westwood':'SoCal','Williamsburg':'NYC Metro','Wisconsin Ave':'Northeast',
+  'Woodbury':'NYC Metro','Woodland Hills':'SoCal','Yorkville':'Canada',
+};
+const PTMS = {
+  'Hudson Yards':'M. Chen','Flatiron':'S. Kim','Columbus Circle':'J. Rodriguez',
+  'Sports Club Boston':'R. Torres','West Hollywood':'D. Park',
+};
 
 // ─── DATA GENERATOR ──────────────────────────
 let _s=42; const rand=()=>{_s=(_s*9301+49297)%233280;return _s/233280;};
@@ -66,47 +159,26 @@ function mkCoach(id,name,club,stage,tier,ho,profile){
     return {wk:'W'+(wi+1),
       eq_b:Math.round(b.eq_b*wm), eq_c:Math.round(Math.max(b.eq_c,1)*wm),
       cpt:Math.round(Math.max(b.cpts,1)*wm), sess:Math.round(Math.max(b.sess,1)*wm),
-      conv:Math.round(Math.max(b.ac,1)*0.35*wm), fu:Math.round(Math.max(b.fu,1)*wm)};
+      conv:Math.round(Math.max(b.ac,1)*0.35*wm), fu:Math.round(Math.max(b.fu,1)*wm),
+      rev:Math.round(b.rev*wm)};
   });
-  const L=hist[7];
+  const L=hist[7],P=hist[6];
   const si=RAMP_STAGES.indexOf(stage);
-  const pkgOptions=[6,12,24,48];
-  const pkgIndex=Math.min(3,Math.max(0,Math.floor((si+(profile==='excellent'?1:profile==='struggling'?-1:0))/2)));
   const ac=Math.round(Math.max(b.ac,0)*m*1.1+si*1.5*m);
   const rc=Math.round(ac*Math.min(b.rec_pct*m*1.1,0.95));
-  const confidence=Math.min(5,Math.max(1,Math.round((2.7+m*1.25+(profile==='struggling'?-0.4:0))*10)/10));
-  const supportMap={excellent:'Scaling repeatable habits',good:'Recurring client growth',average:'Equifit-to-CPT close',struggling:'Floor engagement'};
-  const focusMap={excellent:'Scale recurring clients and mentor one peer.',good:'Improve follow-up cadence and protect recurring schedules.',average:'Tighten consultation structure before the CPT close.',struggling:'Book two focused floor engagement blocks per day.'};
-  const challengeMap={excellent:'Prioritizing highest-value leads',good:'Keeping follow-up blocks consistent',average:'Converting Equifits into CPT starts',struggling:'Starting member conversations'};
   return {id,name,club,region:REGIONS[club],ptm:PTMS[club],tier,ramp_stage:stage,
     hire_date:'2025-'+String(12-ho).padStart(2,'0')+'-01',hist,
-    eq_b:L.eq_b, eq_c:L.eq_c, cpt:L.cpt, sess:L.sess, conv:L.conv, fu:L.fu,
-    ac, rc, rec_pct:ac>0?rc/ac:0,
+    eq_b:L.eq_b, eq_c:L.eq_c, cpt:L.cpt, sess:L.sess, conv:L.conv, fu:L.fu, rev:L.rev,
+    monthly_rev:L.rev*4, ac, rc, rec_pct:ac>0?rc/ac:0,
     retention:Math.min(.99,.72+m*.22), confirm:Math.min(.99,.76+m*.18),
-    cal_util:Math.min(.99,.62+m*.26), pkg:pkgOptions[pkgIndex],
+    cal_util:Math.min(.99,.62+m*.26), pkg:Math.round((800+si*150)*m),
     eq_conv:L.eq_b>0?Math.min(.95,(L.eq_c/L.eq_b)*(.7+m*.25)):0,
     cpt_rate:L.eq_c>0?Math.min(.9,(L.cpt/L.eq_c)*(.6+m*.3)):0,
-    self_assess:{
-      submitted:'May 13, 2026 · 11:16 AM',
-      cycleEnd:'May 31, 2026',
-      confidence,
-      conversations:Math.max(1,Math.round((si+1)*m)),
-      followUps:L.fu,
-      eqBooked:L.eq_b,
-      eqCompleted:L.eq_c,
-      cpts:L.cpt,
-      conversions:L.conv,
-      activeClients:ac,
-      recurringClients:rc,
-      supportArea:supportMap[profile],
-      biggestChallenge:challengeMap[profile],
-      leadSupport:profile==='struggling'?'YES - review top two lead conversations before next PDM':'No urgent lead support requested',
-      nextFocus:focusMap[profile],
-      selfScore:confidence>=4.4?'Strong':confidence>=3.6?'On Pace':'Needs Support'
-    }};
+    rev_trend:L.rev-P.rev, self_assess:null};
 }
 
-const RAW=[
+// Use real data from source of truth when loaded; sample fallback for offline
+const RAW_SAMPLE=[
   mkCoach('EQX001','Alex Rivera',      'Hudson Yards',   'Week 3', 'Coach',  2,'excellent'),
   mkCoach('EQX002','Jordan Lee',       'Hudson Yards',   'Week 4', 'Coach',  3,'good'),
   mkCoach('EQX003','Priya Sharma',     'Hudson Yards',   'Month 2','Coach',  5,'excellent'),
@@ -122,24 +194,28 @@ const RAW=[
   mkCoach('EQX013','Chris Nakamura',   'Columbus Circle','Week 4', 'Coach',  3,'struggling'),
   mkCoach('EQX014','Destiny Harris',   'Columbus Circle','Week 1', 'Coach',  0,'average'),
   mkCoach('EQX015','Ethan Park',       'Columbus Circle','Month 3','Coach+', 8,'good'),
-  mkCoach('EQX016','Amara Diallo',     'Boston Back Bay','Month 2','Coach',  5,'excellent'),
-  mkCoach('EQX017','Caleb Nguyen',     'Boston Back Bay','Week 3', 'Coach',  2,'good'),
-  mkCoach('EQX018','Sofia Martinez',   'Boston Back Bay','Week 4', 'Coach',  3,'average'),
-  mkCoach('EQX019','Marcus Thompson',  'Boston Back Bay','Week 2', 'Coach',  1,'struggling'),
-  mkCoach('EQX020','Elena Vasquez',    'Boston Back Bay','Month 3','Coach+', 8,'excellent'),
+  mkCoach('EQX016','Amara Diallo',     'Sports Club Boston','Month 2','Coach',  5,'excellent'),
+  mkCoach('EQX017','Caleb Nguyen',     'Sports Club Boston','Week 3', 'Coach',  2,'good'),
+  mkCoach('EQX018','Sofia Martinez',   'Sports Club Boston','Week 4', 'Coach',  3,'average'),
+  mkCoach('EQX019','Marcus Thompson',  'Sports Club Boston','Week 2', 'Coach',  1,'struggling'),
+  mkCoach('EQX020','Elena Vasquez',    'Sports Club Boston','Month 3','Coach+', 8,'excellent'),
   mkCoach('EQX021','Jackson Lee',      'West Hollywood', 'Month 2','Coach',  5,'good'),
   mkCoach('EQX022','Mia Rodriguez',    'West Hollywood', 'Week 4', 'Coach',  3,'excellent'),
   mkCoach('EQX023',"Finn O'Brien",     'West Hollywood', 'Week 3', 'Coach',  2,'struggling'),
   mkCoach('EQX024','Aria Williams',    'West Hollywood', 'Month 3','Coach+', 8,'good'),
   mkCoach('EQX025','Kai Johnson',      'West Hollywood', 'Week 2', 'Coach',  1,'average'),
 ];
+// Patch real data with region (from REGIONS map) since it's stored as null
+const RAW=(typeof RAW_REAL!=='undefined')
+  ? RAW_REAL.map(c=>({...c, region:REGIONS[c.club]||c.club, ptm:PTMS[c.club]||null}))
+  : RAW_SAMPLE;
 
 // ─── SCORING ─────────────────────────────────
 const cap=(v,max,fl=0)=>Math.min(100,Math.max(fl,(v/Math.max(max,.01))*100));
 
 function scoreProd(c){
   const b=BENCHMARKS[c.ramp_stage];
-  return Math.round((b.ac>0?cap(c.ac,b.ac,10):70)*.55+(b.sess>0?cap(c.sess,b.sess,10):70)*.45);
+  return Math.round(cap(c.monthly_rev,b.rev*4)*.45+(b.ac>0?cap(c.ac,b.ac,10):70)*.30+(b.sess>0?cap(c.sess,b.sess,10):70)*.25);
 }
 function scoreProc(c){
   const b=BENCHMARKS[c.ramp_stage];
@@ -153,6 +229,7 @@ function riskOf(c){
   const b=BENCHMARKS[c.ramp_stage];
   if(c.eq_c===0&&c.ramp_stage!=='Week 1') return 'Red';
   if(c.conv===0&&RAMP_STAGES.indexOf(c.ramp_stage)>=2) return 'Red';
+  if(c.monthly_rev<b.rev*4*.6) return 'Red';
   if(b.rec_pct>0&&c.rec_pct<b.rec_pct*.7) return 'Yellow';
   if(c.confirm<.80) return 'Yellow';
   if(c.eq_b<b.eq_b*.7) return 'Yellow';
@@ -181,13 +258,14 @@ function recommend(c){
   if(c.eq_c>=b.eq_c) wins.push('Equifit cadence at or above benchmark');
   if(c.ac>=b.ac) wins.push('Active client count on pace');
   if(b.rec_pct>0&&c.rec_pct>=b.rec_pct) wins.push('Recurring rate meeting target');
+  if(c.monthly_rev>=b.rev*4*.9) wins.push('Revenue pace within target range');
   if(c.confirm>=.90) wins.push('High session confirmation rate');
   if(!wins.length) wins.push('Showing up and building baseline habits');
   if(c.eq_c<b.eq_c){opps.push('Equifit volume below target');focs.push('Equifit completion cadence');acts.push('Set daily floor conversation targets. Review booking approach.');}
   if(b.cpts>0&&c.cpt<b.cpts){opps.push('CPT close rate below benchmark');focs.push('Equifit-to-CPT conversion');acts.push('Role-play CPT close script. Review consultation structure.');}
   if(c.fu<b.fu){opps.push('Follow-up volume low');focs.push('Pipeline follow-up cadence');acts.push('Build a daily follow-up block. Set minimum outreach targets.');}
   if(b.rec_pct>0&&c.rec_pct<b.rec_pct*.8){opps.push('Recurring % below stage benchmark');focs.push('Recurring scheduling systems');acts.push('Audit current client scheduling. Introduce recurring language.');}
-  if(c.pkg<12&&RAMP_STAGES.indexOf(c.ramp_stage)>=2){opps.push('Average package purchase skews small');focs.push('Average client package purchase');acts.push('Review whether clients are landing in 6, 12, 24, or 48pk options. Coach on value communication.');}
+  if(c.monthly_rev<b.rev*4*.75){opps.push('Revenue pacing below threshold');focs.push('Package optimization');acts.push('Review avg package size vs benchmark. Coach on value communication.');}
   if(c.confirm<.82){opps.push('Session confirmation below 80%');focs.push('Calendar and professionalism');acts.push('Implement 24-hour session confirmation. Review no-show recovery.');}
   if(!opps.length) opps.push('No critical gaps — focus on scaling volume');
   return {wins,opps,focus:focs[0]||'Sustain current performance',action:acts[0]||'Identify the next scaling opportunity.'};
@@ -205,7 +283,7 @@ const atx=n=>['#374151','#1D4ED8','#065F46','#92400E','#5B21B6','#991B1B'][n.cha
 
 // ─── SVG CHARTS ──────────────────────────────
 function SvgLine({data,keys,colors,h=180,labels}){
-  const w=560,pad={t:28,r:10,b:30,l:36};
+  const w=560,pad={t:10,r:10,b:28,l:36};
   const iw=w-pad.l-pad.r, ih=h-pad.t-pad.b;
   const allVals=data.flatMap(d=>keys.map(k=>d[k]||0));
   const maxV=Math.max(...allVals,1)*1.1;
@@ -221,7 +299,7 @@ function SvgLine({data,keys,colors,h=180,labels}){
         </g>
       ))}
       {data.map((d,i)=>(
-        <text key={i} x={x(i)} y={h-8} textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--text-2)">{d.wk||d.label}</text>
+        <text key={i} x={x(i)} y={h-6} textAnchor="middle" fontSize="10" fill="var(--text-muted)">{d.wk||d.label}</text>
       ))}
       {keys.map((k,ki)=>{
         const pts=data.map((d,i)=>`${x(i)},${y(d[k]||0)}`).join(' ');
@@ -229,9 +307,9 @@ function SvgLine({data,keys,colors,h=180,labels}){
       })}
       {labels&&(
         <g>{keys.map((k,ki)=>(
-          <g key={k} transform={`translate(${w-pad.r-260+ki*88},${10})`}>
+          <g key={k} transform={`translate(${pad.l+ki*90},${h-4})`}>
             <rect x="0" y="-6" width="14" height="2" rx="1" fill={colors[ki]}/>
-            <text x="18" y="-2" fontSize="10" fontWeight="600" fill="var(--text-2)">{labels[ki]}</text>
+            <text x="18" y="-2" fontSize="10" fill="var(--text-muted)">{labels[ki]}</text>
           </g>
         ))}</g>
       )}
@@ -240,7 +318,7 @@ function SvgLine({data,keys,colors,h=180,labels}){
 }
 
 function SvgBar({data,h=185}){
-  const w=480,pad={t:28,r:10,b:34,l:36};
+  const w=480,pad={t:10,r:10,b:28,l:36};
   const iw=w-pad.l-pad.r, ih=h-pad.t-pad.b;
   const maxV=Math.max(...data.flatMap(d=>[d.actual,d.target]),1)*1.1;
   const bw=Math.floor(iw/data.length), gap=6, grpW=bw-gap;
@@ -259,11 +337,11 @@ function SvgBar({data,h=185}){
           <g key={i}>
             <rect x={cx-hw} y={y(d.target)} width={hw-1} height={th} rx="2" fill="var(--subtle)"/>
             <rect x={cx+1}  y={y(d.actual)} width={hw-1} height={ah} rx="2" fill="var(--text)"/>
-            <text x={cx} y={h-13} textAnchor="middle" fontSize="9" fill="var(--text-muted)">{d.m}</text>
+            <text x={cx} y={h-6} textAnchor="middle" fontSize="10" fill="var(--text-muted)">{d.m}</text>
           </g>
         );
       })}
-      <g transform={`translate(${w-138},${10})`}>
+      <g transform={`translate(${pad.l},${h-4})`}>
         <rect x="0" y="-6" width="12" height="8" rx="1" fill="var(--subtle)"/><text x="16" y="0" fontSize="10" fill="var(--text-muted)">Target</text>
         <rect x="65" y="-6" width="12" height="8" rx="1" fill="var(--text)"/><text x="81" y="0" fontSize="10" fill="var(--text-muted)">Actual</text>
       </g>
@@ -293,29 +371,6 @@ function SvgBarSingle({data,h=165}){
           </g>
         );
       })}
-    </svg>
-  );
-}
-
-function SvgDonut({data,size=160}){
-  const cx=size/2,cy=size/2,r=size*.3,strokeW=size*.12;
-  const total=data.reduce((s,d)=>s+d.v,0)||1;
-  const GRAYS=['var(--donut-0)','var(--donut-1)','var(--donut-2)','var(--donut-3)','var(--donut-4)','var(--donut-5)'];
-  let cumAngle=-Math.PI/2;
-  const slices=data.map((d,i)=>{
-    const angle=(d.v/total)*2*Math.PI;
-    const x1=cx+r*Math.cos(cumAngle), y1=cy+r*Math.sin(cumAngle);
-    cumAngle+=angle;
-    const x2=cx+r*Math.cos(cumAngle), y2=cy+r*Math.sin(cumAngle);
-    const large=angle>Math.PI?1:0;
-    return {path:`M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`,color:GRAYS[i%GRAYS.length],d};
-  });
-  return (
-    <svg width={size} height={size}>
-      {slices.map((s,i)=>(
-        <path key={i} d={s.path} fill="none" stroke={s.color} strokeWidth={strokeW} strokeLinecap="butt"/>
-      ))}
-      <text x={cx} y={cy+5} textAnchor="middle" fontSize={size*.14} fontWeight="700" fill="var(--text)">{total}</text>
     </svg>
   );
 }
@@ -477,20 +532,30 @@ function Sidebar({view,onNav,dark,onToggleTheme}){
 
 // ─── PORTFOLIO VIEW ───────────────────────────
 function PortfolioView({coaches,setView,setClub,setCoach}){
-  const [selectedStage,setSelectedStage]=useState('Week 1');
+  const [cpQ,setCpQ]=useState('');
   const cs=useMemo(()=>CLUBS.map(club=>{
     const cc=coaches.filter(c=>c.club===club);
-    return {club,n:cc.length,active:cc.reduce((s,c)=>s+c.ac,0),
+    return {club,n:cc.length,rev:cc.reduce((s,c)=>s+c.monthly_rev,0),
       score:cc.length?Math.round(cc.reduce((s,c)=>s+c.score,0)/cc.length):0,
       risk:cc.filter(c=>c.risk==='Red').length,region:REGIONS[club]};
   }),[coaches]);
-  const tot={active:coaches.reduce((s,c)=>s+c.ac,0),
-    recurring:coaches.reduce((s,c)=>s+c.rc,0),
+  const scored=useMemo(()=>cs.filter(s=>s.n>0).sort((a,b)=>b.score-a.score),[cs]);
+  const topTier=scored.slice(0,4);
+  const rest=scored.slice(4);
+  const needTier=rest.length>=4?rest.slice(-4):[];
+  const midTier=(rest.length>=4?rest.slice(0,rest.length-4):rest).slice(0,4);
+  const searchMatches=useMemo(()=>{
+    if(!cpQ)return[];
+    const q=cpQ.toLowerCase();
+    return cs.filter(s=>s.club.toLowerCase().includes(q)||(CLUB_NUMBERS[s.club]||'').includes(q));
+  },[cs,cpQ]);
+  const tot={rev:coaches.reduce((s,c)=>s+c.monthly_rev,0),
     score:Math.round(coaches.reduce((s,c)=>s+c.score,0)/coaches.length),
     red:coaches.filter(c=>c.risk==='Red').length,
     warn:coaches.filter(c=>c.risk==='Yellow').length};
   const rdist=RAMP_STAGES.map(s=>({label:s,v:coaches.filter(c=>c.ramp_stage===s).length})).filter(r=>r.v>0);
-  const selectedRamp=rdist.find(r=>r.label===selectedStage)||rdist[0];
+  const [selectedStage,setSelectedStage]=useState(null);
+  const selectedRamp=rdist.find(r=>r.label===selectedStage)||rdist[rdist.length-1];
   const rampCoaches=coaches.filter(c=>c.ramp_stage===(selectedRamp?.label||selectedStage));
   const top5=[...coaches].sort((a,b)=>b.score-a.score).slice(0,5);
   const alerts=coaches.filter(c=>c.risk!=='Green').sort((a,b)=>a.score-b.score).slice(0,5);
@@ -502,68 +567,102 @@ function PortfolioView({coaches,setView,setClub,setCoach}){
         <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:4}}>{coaches.length} active coaches · {CLUBS.length} clubs · Week of May 12, 2026</div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:22}}>
+        <KCard label="Monthly Revenue Pace"   value={f$(tot.rev)}    sub={coaches.length+' coaches'}/>
         <KCard label="Portfolio Health Score" value={tot.score}      sub={sl(tot.score)}/>
         <KCard label="At-Risk Coaches"        value={tot.red}        sub={tot.warn+' additional on watch'}/>
         <KCard label="Active Coaches"         value={coaches.length} sub="All ramp stages"/>
-        <KCard label="Recurring Clients"      value={tot.recurring+' / '+tot.active} sub={fp(tot.recurring/Math.max(tot.active,1))}/>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 320px',gap:16,marginBottom:20}}>
         <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'20px'}}>
-          <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14}}>Club Performance</div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10}}>
-            {cs.map(s=>(
-              <button key={s.club} onClick={()=>{setClub(s.club);setView('club');}}
-                style={{background:'var(--surface-alt)',border:'1px solid var(--subtle)',borderRadius:10,padding:'14px 16px',cursor:'pointer',textAlign:'left',transition:'box-shadow .12s'}}
-                onMouseEnter={e=>e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,.06)'}
-                onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
-                <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
-                  <div><div style={{fontSize:'13px',fontWeight:600,color:'var(--text)'}}>{s.club}</div><div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:1}}>{s.region} · {s.n} coaches</div></div>
-                  <ScoreRing score={s.score} size={40} stroke={4}/>
-                </div>
-                <div style={{display:'flex',gap:16}}>
-                  <div><div style={{fontSize:'10px',color:'var(--text-muted)'}}>Active Clients</div><div style={{fontSize:'13px',fontWeight:600,color:'var(--text)'}}>{s.active}</div></div>
-                  <div><div style={{fontSize:'10px',color:'var(--text-muted)'}}>At Risk</div><div style={{fontSize:'13px',fontWeight:600,color:s.risk>0?'#DC2626':'#16A34A'}}>{s.risk}</div></div>
-                </div>
-              </button>
-            ))}
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+            <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)'}}>Club Performance</div>
+            <div style={{position:'relative'}}>
+              <input value={cpQ} onChange={e=>setCpQ(e.target.value)} placeholder="Search clubs…"
+                style={{padding:'5px 28px 5px 10px',border:'1px solid var(--border)',borderRadius:6,fontSize:'11px',width:170,outline:'none',background:'var(--surface)',color:'var(--text)'}}/>
+              {cpQ
+                ?<button onClick={()=>setCpQ('')} style={{position:'absolute',right:7,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:13,lineHeight:1}}>✕</button>
+                :<svg width="12" height="12" fill="none" stroke="var(--text-muted)" strokeWidth="2" viewBox="0 0 24 24" style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+              }
+            </div>
           </div>
+          {cpQ?(
+            searchMatches.length===0
+              ?<div style={{padding:'24px 0',textAlign:'center',color:'var(--text-muted)',fontSize:'12px'}}>No clubs match "{cpQ}"</div>
+              :<div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
+                {searchMatches.map(s=>(
+                  <button key={s.club} onClick={()=>{setClub(s.club);setView('club');}}
+                    style={{background:'var(--surface-alt)',border:'1px solid var(--subtle)',borderRadius:9,padding:'12px 14px',cursor:'pointer',textAlign:'left'}}
+                    onMouseEnter={e=>e.currentTarget.style.background='var(--subtle)'}
+                    onMouseLeave={e=>e.currentTarget.style.background='var(--surface-alt)'}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                      <div><div style={{fontSize:'12px',fontWeight:600,color:'var(--text)'}}>{s.club}</div><div style={{fontSize:'10px',color:'var(--text-muted)',marginTop:2}}>{s.region} · #{CLUB_NUMBERS[s.club]}</div></div>
+                      <ScoreRing score={s.score} size={34} stroke={3}/>
+                    </div>
+                    <div style={{display:'flex',gap:14,marginTop:8}}>
+                      <div><div style={{fontSize:'9px',color:'var(--text-muted)'}}>Coaches</div><div style={{fontSize:'12px',fontWeight:600,color:'var(--text)'}}>{s.n}</div></div>
+                      <div><div style={{fontSize:'9px',color:'var(--text-muted)'}}>Rev Pace</div><div style={{fontSize:'12px',fontWeight:600,color:'var(--text)'}}>{f$(s.rev)}</div></div>
+                      <div><div style={{fontSize:'9px',color:'var(--text-muted)'}}>At Risk</div><div style={{fontSize:'12px',fontWeight:600,color:s.risk>0?'#DC2626':'#16A34A'}}>{s.risk}</div></div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+          ):(
+            <div style={{display:'flex',flexDirection:'column',gap:18}}>
+              {[
+                {label:'Top',color:'#16A34A',tier:topTier},
+                {label:'Intermediate',color:'#D97706',tier:midTier},
+                {label:'Needs Attention',color:'#DC2626',tier:needTier},
+              ].map(({label,color,tier})=>tier.length===0?null:(
+                <div key={label}>
+                  <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:9}}>
+                    <div style={{width:8,height:8,borderRadius:'50%',background:color}}/>
+                    <span style={{fontSize:'10px',fontWeight:700,letterSpacing:'.06em',textTransform:'uppercase',color}}>{label}</span>
+                    <span style={{fontSize:'10px',color:'var(--text-muted)'}}>{tier.length} club{tier.length!==1?'s':''}</span>
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
+                    {tier.map(s=>(
+                      <button key={s.club} onClick={()=>{setClub(s.club);setView('club');}}
+                        style={{background:'var(--surface-alt)',border:'1px solid var(--subtle)',borderRadius:9,padding:'12px 13px',cursor:'pointer',textAlign:'left',borderLeft:`3px solid ${color}`}}
+                        onMouseEnter={e=>e.currentTarget.style.background='var(--subtle)'}
+                        onMouseLeave={e=>e.currentTarget.style.background='var(--surface-alt)'}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+                          <div style={{flex:1,minWidth:0,paddingRight:4}}>
+                            <div style={{fontSize:'12px',fontWeight:600,color:'var(--text)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{s.club}</div>
+                            <div style={{fontSize:'10px',color:'var(--text-muted)',marginTop:1}}>{s.region}</div>
+                          </div>
+                          <ScoreRing score={s.score} size={32} stroke={3}/>
+                        </div>
+                        <div style={{display:'flex',gap:10}}>
+                          <div><div style={{fontSize:'9px',color:'var(--text-muted)'}}>Rev</div><div style={{fontSize:'12px',fontWeight:600,color:'var(--text)'}}>{f$(s.rev)}</div></div>
+                          <div><div style={{fontSize:'9px',color:'var(--text-muted)'}}>Risk</div><div style={{fontSize:'12px',fontWeight:600,color:s.risk>0?'#DC2626':'#16A34A'}}>{s.risk}</div></div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'20px'}}>
           <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:12}}>Ramp Stage Distribution</div>
-          <div style={{display:'flex',justifyContent:'center',marginBottom:12}}>
-            <SvgPyramid data={rdist} selectedStage={selectedRamp?.label} onSelect={setSelectedStage}/>
-          </div>
-          <div>
-            {rdist.map((r,i)=>{
-              const GRAYS=['var(--donut-0)','var(--donut-1)','var(--donut-2)','var(--donut-3)','var(--donut-4)','var(--donut-5)'];
-              const isSelected=r.label===(selectedRamp?.label);
-              return (
-                <button key={r.label} onClick={()=>setSelectedStage(r.label)}
-                  style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'4px 0',border:'none',borderBottom:'1px solid var(--row-sep)',background:isSelected?'var(--subtle)':'transparent',cursor:'pointer',borderRadius:isSelected?5:0,outline:'none'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:7}}>
-                    <div style={{width:7,height:7,borderRadius:'50%',background:GRAYS[i%6]}}/>
-                    <span style={{fontSize:'11px',color:'var(--text-sec)',fontWeight:isSelected?700:400}}>{r.label}</span>
+          <SvgPyramid data={rdist} w={300} h={170} selectedStage={selectedRamp?.label} onSelect={setSelectedStage}/>
+          <div style={{marginTop:14,borderTop:'1px solid var(--border)',paddingTop:12}}>
+            <div style={{fontSize:'10px',fontWeight:600,color:'var(--text-muted)',marginBottom:8,textTransform:'uppercase',letterSpacing:'.08em'}}>{selectedRamp?.label} · {rampCoaches.length} coaches</div>
+            <div style={{maxHeight:120,overflowY:'auto',display:'flex',flexDirection:'column',gap:4}}>
+              {rampCoaches.slice(0,8).map(c=>(
+                <button key={c.id} onClick={()=>{setCoach(c);setView('coach');}}
+                  style={{display:'flex',alignItems:'center',gap:8,padding:'4px 0',background:'none',border:'none',cursor:'pointer',textAlign:'left',width:'100%'}}>
+                  <Av name={c.name} size={22}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:'12px',fontWeight:600,color:'var(--text)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{c.name}</div>
+                    <div style={{fontSize:'10px',color:'var(--text-muted)'}}>{c.club}</div>
                   </div>
-                  <div style={{display:'flex',gap:10}}>
-                    <span style={{fontSize:'12px',fontWeight:600,color:'var(--text)'}}>{r.v}</span>
-                    <span style={{fontSize:'10px',color:'var(--text-muted)',width:28,textAlign:'right'}}>{Math.round(r.v/coaches.length*100)}%</span>
-                  </div>
+                  <span style={{fontSize:'11px',fontWeight:600,color:sc(c.score)}}>{c.score}</span>
                 </button>
-              );
-            })}
-          </div>
-          <div style={{marginTop:14,paddingTop:12,borderTop:'1px solid var(--subtle)'}}>
-            <div style={{fontSize:'9px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:8}}>{selectedRamp?.label} Coaches</div>
-            {rampCoaches.map(c=>(
-              <button key={c.id} onClick={()=>{setCoach(c);setView('coach');}}
-                style={{width:'100%',display:'flex',alignItems:'center',gap:8,padding:'5px 0',border:'none',background:'transparent',cursor:'pointer',textAlign:'left'}}>
-                <Av name={c.name} size={24}/>
-                <div style={{minWidth:0}}>
-                  <div style={{fontSize:'11px',fontWeight:600,color:'var(--text)'}}>{c.name}</div>
-                  <div style={{fontSize:'10px',color:'var(--text-muted)'}}>{c.club}</div>
-                </div>
-              </button>
-            ))}
+              ))}
+              {rampCoaches.length>8&&<div style={{fontSize:'10px',color:'var(--text-muted)',paddingTop:2}}>+{rampCoaches.length-8} more</div>}
+            </div>
           </div>
         </div>
       </div>
@@ -611,19 +710,61 @@ function PortfolioView({coaches,setView,setClub,setCoach}){
   );
 }
 
+// ─── CLUB SEARCH DROPDOWN ─────────────────────
+function ClubSearchDropdown({club,setClub}){
+  const [query,setQuery]=useState('');
+  const [open,setOpen]=useState(false);
+  const ref=useRef(null);
+  const filtered=useMemo(()=>{
+    const q=query.toLowerCase().trim();
+    if(!q)return CLUBS;
+    return CLUBS.filter(cl=>cl.toLowerCase().includes(q)||CLUB_NUMBERS[cl].includes(q));
+  },[query]);
+  useEffect(()=>{
+    function handler(e){if(ref.current&&!ref.current.contains(e.target))setOpen(false);}
+    document.addEventListener('mousedown',handler);
+    return()=>document.removeEventListener('mousedown',handler);
+  },[]);
+  return(
+    <div ref={ref} style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
+      <label style={{fontSize:'9px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)'}}>Club Search</label>
+      <div style={{position:'relative',width:240}}>
+        <input value={open?query:`${club} · ${CLUB_NUMBERS[club]}`}
+          onFocus={()=>{setOpen(true);setQuery('');}}
+          onChange={e=>setQuery(e.target.value)}
+          placeholder="Type name or number…"
+          style={{width:'100%',padding:'8px 30px 8px 10px',border:'1px solid var(--border)',borderRadius:7,fontSize:'12px',outline:'none',color:'var(--text-sec)',background:'var(--surface)',cursor:'pointer'}}/>
+        <svg width="13" height="13" fill="none" stroke="var(--text-muted)" strokeWidth="2" viewBox="0 0 24 24" style={{position:'absolute',right:9,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}>
+          <path d="M6 9l6 6 6-6"/>
+        </svg>
+        {open&&(
+          <div style={{position:'absolute',top:'calc(100% + 4px)',right:0,width:260,maxHeight:280,overflowY:'auto',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:9,zIndex:200,boxShadow:'0 6px 20px rgba(0,0,0,.10)'}}>
+            {filtered.length===0
+              ?<div style={{padding:'12px',fontSize:'11px',color:'var(--text-muted)'}}>No clubs found</div>
+              :filtered.map(cl=>(
+                <div key={cl} onMouseDown={()=>{setClub(cl);setOpen(false);setQuery('');}}
+                  style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 12px',cursor:'pointer',fontSize:'12px',color:'var(--text)',background:cl===club?'var(--subtle)':'transparent'}}
+                  onMouseEnter={e=>e.currentTarget.style.background='var(--subtle)'}
+                  onMouseLeave={e=>e.currentTarget.style.background=cl===club?'var(--subtle)':'transparent'}>
+                  <span>{cl}</span>
+                  <span style={{fontSize:'10px',color:'var(--text-muted)',marginLeft:8}}>#{CLUB_NUMBERS[cl]}</span>
+                </div>
+              ))
+            }
+          </div>
+        )}
+      </div>
+      <div style={{fontSize:'10px',color:'var(--text-muted)'}}>Selected club #{CLUB_NUMBERS[club]}</div>
+    </div>
+  );
+}
+
 // ─── CLUB VIEW ────────────────────────────────
 function ClubView({all,club,setClub,setCoach,setView}){
   const [sf,setSf]=useState('All');
   const [q,setQ]=useState('');
-  const [clubSearch,setClubSearch]=useState(`${club} · ${CLUB_NUMBERS[club]}`);
-  useEffect(()=>{setClubSearch(`${club} · ${CLUB_NUMBERS[club]}`);},[club]);
-  function handleClubSearch(v){
-    setClubSearch(v);
-    const s=v.toLowerCase().trim();
-    const match=CLUBS.find(cl=>cl.toLowerCase().includes(s)||CLUB_NUMBERS[cl].includes(s));
-    if(match) setClub(match);
-  }
   const coaches=useMemo(()=>all.filter(c=>c.club===club&&(sf==='All'||c.ramp_stage===sf)&&(!q||c.name.toLowerCase().includes(q.toLowerCase()))),[all,club,sf,q]);
+  const totRev=coaches.reduce((s,c)=>s+c.monthly_rev,0);
   const avgScore=coaches.length?Math.round(coaches.reduce((s,c)=>s+c.score,0)/coaches.length):0;
   const trendData=useMemo(()=>{
     const cc=all.filter(c=>c.club===club);
@@ -644,32 +785,18 @@ function ClubView({all,club,setClub,setCoach,setView}){
         <div>
           <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:4}}>Club View</div>
           <h1 style={{fontSize:'24px',fontWeight:700,color:'var(--text)',letterSpacing:'-.02em'}}>PT Department · {club}</h1>
-          <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:4}}>{REGIONS[club]} · PTM: {PTMS[club]} · Avg Score: {avgScore}</div>
+          <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:4}}>{REGIONS[club]} · PTM: {PTMS[club]||'—'} · Avg Score: {avgScore}</div>
         </div>
-        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:5,width:310}}>
-          <label htmlFor="club-search" style={{fontSize:'9px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)'}}>Club Search</label>
-          <div style={{position:'relative',width:'100%'}}>
-            <input id="club-search" list="club-options" value={clubSearch} onChange={e=>handleClubSearch(e.target.value)} onBlur={()=>setClubSearch(`${club} · ${CLUB_NUMBERS[club]}`)}
-              placeholder="Type club name or number"
-              style={{width:'100%',padding:'8px 32px 8px 10px',border:'1px solid var(--border)',borderRadius:7,fontSize:'12px',outline:'none',color:'var(--text-sec)',background:'var(--surface)'}}/>
-            <svg width="14" height="14" fill="none" stroke="var(--text-muted)" strokeWidth="2" viewBox="0 0 24 24" style={{position:'absolute',right:10,top:9,pointerEvents:'none'}}>
-              <path d="M6 9l6 6 6-6"/>
-            </svg>
-            <datalist id="club-options">
-              {CLUBS.map(cl=><option key={cl} value={`${cl} · ${CLUB_NUMBERS[cl]}`}>{CLUB_NUMBERS[cl]}</option>)}
-            </datalist>
-          </div>
-          <div style={{fontSize:'10px',color:'var(--text-muted)'}}>Selected club #{CLUB_NUMBERS[club]}</div>
-        </div>
+        <ClubSearchDropdown club={club} setClub={setClub}/>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:10,marginBottom:18}}>
         <KCard label="Coaches"       value={coaches.length}/>
-        <KCard label="Equifits Booked" value={coaches.reduce((s,c)=>s+c.eq_b,0)}/>
         <KCard label="Equifits"      value={coaches.reduce((s,c)=>s+c.eq_c,0)}/>
         <KCard label="CPTs"          value={coaches.reduce((s,c)=>s+c.cpt,0)}/>
         <KCard label="New Clients"   value={coaches.reduce((s,c)=>s+c.conv,0)}/>
         <KCard label="Active Clients"value={coaches.reduce((s,c)=>s+c.ac,0)}/>
         <KCard label="Recurring"     value={coaches.reduce((s,c)=>s+c.rc,0)}/>
+        <KCard label="Monthly Rev"   value={f$(totRev)}/>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 300px',gap:14,marginBottom:18}}>
         <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'20px'}}>
@@ -710,7 +837,7 @@ function ClubView({all,club,setClub,setCoach,setView}){
         <table style={{width:'100%',borderCollapse:'collapse'}}>
           <thead>
             <tr style={{borderBottom:'1px solid var(--subtle)'}}>
-              {['Coach','Stage','Overall','Prod','Proc','Pers','Equifits','CPTs','New Clients','Avg Package','Status',''].map(h=>(
+              {['Coach','Stage','Overall','Prod','Proc','Pers','Equifits','CPTs','New Clients','Avg Program','Status',''].map(h=>(
                 <th key={h} style={{padding:'7px 10px',textAlign:'left',fontSize:'9px',fontWeight:600,letterSpacing:'.08em',textTransform:'uppercase',color:'var(--text-muted)',whiteSpace:'nowrap'}}>{h}</th>
               ))}
             </tr>
@@ -787,7 +914,7 @@ function CoachView({coach,all,setCoach,setView,setClub}){
       </div>
     );
   }
-  const dg=diagnose(coach), rec=recommend(coach), b=BENCHMARKS[coach.ramp_stage], assess=coach.self_assess;
+  const dg=diagnose(coach), rec=recommend(coach), b=BENCHMARKS[coach.ramp_stage];
   const TABS=[{id:'overview',l:'Overview'},{id:'process',l:'Activity'},{id:'trends',l:'Trends'},{id:'coaching',l:'Coaching'},{id:'assess',l:'Self-Assessment'}];
   const diagBg=dg.col==='green'?'#F0FDF4':dg.col==='amber'?'#FFFBEB':'#FEF2F2';
   const diagBdr=dg.col==='green'?'#BBF7D0':dg.col==='amber'?'#FDE68A':'#FECACA';
@@ -804,7 +931,7 @@ function CoachView({coach,all,setCoach,setView,setClub}){
           <Av name={coach.name} size={48}/>
           <div>
             <h1 style={{fontSize:'22px',fontWeight:700,color:'var(--text)',letterSpacing:'-.02em'}}>{coach.name}</h1>
-            <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:3}}>{coach.ramp_stage} · {coach.tier} · {coach.club} · PTM: {coach.ptm}</div>
+            <div style={{fontSize:'12px',color:'var(--text-muted)',marginTop:3}}>{coach.ramp_stage} · {coach.tier} · {coach.club} · PTM: {coach.ptm||'—'}</div>
           </div>
         </div>
         <div style={{display:'flex',gap:12,alignItems:'center'}}>
@@ -832,17 +959,17 @@ function CoachView({coach,all,setCoach,setView,setClub}){
         <div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:18}}>
             <BCard label="Production" score={coach.prod} weight="50%"
-              metrics={[{l:'Active Clients',v:coach.ac,b:b.ac},{l:'Sessions / Wk',v:coach.sess,b:b.sess},{l:'New Clients',v:coach.conv},{l:'Avg Client Package',v:coach.pkg+'pk'}]}/>
+              metrics={[{l:'Monthly Rev Pace',v:f$(coach.monthly_rev),b:f$(b.rev*4)},{l:'Active Clients',v:coach.ac,b:b.ac},{l:'Sessions / Wk',v:coach.sess,b:b.sess},{l:'Rev / Session',v:coach.sess>0?f$(Math.round(coach.rev/Math.max(coach.sess,1))):'—'}]}/>
             <BCard label="Process" score={coach.proc} weight="30%"
               metrics={[{l:'Equifits Completed',v:coach.eq_c,b:b.eq_c},{l:'CPTs Completed',v:coach.cpt,b:b.cpts},{l:'Follow-Ups',v:coach.fu,b:b.fu},{l:'Equifits Booked',v:coach.eq_b,b:b.eq_b}]}/>
             <BCard label="Persistence" score={coach.pers} weight="20%"
               metrics={[{l:'Recurring Clients',v:coach.rc,b:Math.round(b.ac*b.rec_pct)},{l:'Recurring %',v:fp(coach.rec_pct),b:fp(b.rec_pct)},{l:'Client Retention',v:fp(coach.retention)},{l:'Session Confirm',v:fp(coach.confirm)}]}/>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10}}>
-            <KCard label="Completed Sessions" value={coach.sess}/>
+            <KCard label="Weekly Revenue"   value={f$(coach.rev)}   trend={f$(Math.abs(coach.rev_trend))} trendUp={coach.rev_trend>=0}/>
             <KCard label="Active Clients"   value={coach.ac}/>
             <KCard label="Recurring"        value={coach.rc+' / '+coach.ac} sub={fp(coach.rec_pct)}/>
-            <KCard label="Avg Client Package" value={coach.pkg+'pk'}/>
+            <KCard label="Avg Program" value={coach.pkg+'pk'}/>
             <KCard label="Calendar Util"    value={fp(coach.cal_util)}/>
           </div>
         </div>
@@ -860,8 +987,8 @@ function CoachView({coach,all,setCoach,setView,setClub}){
             <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'20px'}}>
               <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14}}>Activity vs Benchmark</div>
               <SvgBar data={[
-                {m:'Booked',    actual:coach.eq_b, target:b.eq_b},
-                {m:'Completed', actual:coach.eq_c, target:Math.max(b.eq_c,1)},
+                {m:'Eq Booked', actual:coach.eq_b, target:b.eq_b},
+                {m:'Eq Compl.', actual:coach.eq_c, target:Math.max(b.eq_c,1)},
                 {m:'CPTs',      actual:coach.cpt,  target:Math.max(b.cpts,1)},
                 {m:'Follow-Ups',actual:coach.fu,   target:b.fu},
                 {m:'Sessions',  actual:coach.sess, target:Math.max(b.sess,1)},
@@ -891,12 +1018,12 @@ function CoachView({coach,all,setCoach,setView,setClub}){
       {tab==='trends'&&(
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
           <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'20px'}}>
-            <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14}}>Completed Session Trend</div>
-            <SvgLine data={coach.hist.map(h=>({...h,wk:h.wk}))} keys={['sess']} colors={['var(--chart-bar)']} h={165}/>
+            <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14}}>Revenue Trend</div>
+            <SvgLine data={coach.hist.map(h=>({...h,wk:h.wk}))} keys={['rev']} colors={['var(--chart-bar)']} h={165}/>
           </div>
           <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'20px'}}>
-            <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14}}>Follow-Up Volume</div>
-            <SvgLine data={coach.hist} keys={['fu']} colors={['var(--chart-bar)']} h={165}/>
+            <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14}}>Session Volume</div>
+            <SvgLine data={coach.hist} keys={['sess']} colors={['var(--chart-bar)']} h={165}/>
           </div>
           <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'20px'}}>
             <div style={{fontSize:'10px',fontWeight:600,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14}}>Activity Trend</div>
@@ -957,70 +1084,23 @@ function CoachView({coach,all,setCoach,setView,setClub}){
       )}
 
       {tab==='assess'&&(
-        <div style={{display:'grid',gridTemplateColumns:'1.05fr .95fr',gap:14}}>
-          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'22px'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
-              <div>
-                <div style={{fontSize:'10px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:4}}>Submitted Intake</div>
-                <div style={{fontSize:'17px',fontWeight:700,color:'var(--text)'}}>Weekly PDM Self-Assessment</div>
-                <div style={{fontSize:'11px',color:'var(--text-muted)',marginTop:3}}>Submitted {assess.submitted} · Cycle ends {assess.cycleEnd}</div>
-              </div>
-              <div style={{width:54,height:54,borderRadius:'50%',background:'var(--subtle)',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column'}}>
-                <div style={{fontSize:'18px',fontWeight:800,color:'var(--text)'}}>{assess.confidence}</div>
-                <div style={{fontSize:'9px',color:'var(--text-muted)'}}>/ 5</div>
-              </div>
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:18}}>
-              {[
-                {l:'Member Conversations',v:assess.conversations},
-                {l:'Follow-Ups',v:assess.followUps},
-                {l:'Equifits Booked',v:assess.eqBooked},
-                {l:'CPTs Completed',v:assess.cpts},
-                {l:'New Conversions',v:assess.conversions},
-                {l:'Active Clients',v:assess.activeClients},
-                {l:'Recurring Clients',v:assess.recurringClients},
-                {l:'Self-Rated Score',v:assess.selfScore},
-              ].map(m=>(
-                <div key={m.l} style={{background:'var(--surface-alt)',border:'1px solid var(--subtle)',borderRadius:8,padding:'10px'}}>
-                  <div style={{fontSize:'9px',fontWeight:700,letterSpacing:'.08em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:5}}>{m.l}</div>
-                  <div style={{fontSize:'16px',fontWeight:800,color:'var(--text)'}}>{m.v}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-              <div style={{background:'var(--subtle)',borderRadius:8,padding:'12px'}}>
-                <div style={{fontSize:'9px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:6}}>Biggest Challenge</div>
-                <div style={{fontSize:'13px',lineHeight:1.5,color:'var(--text-sec)'}}>{assess.biggestChallenge}</div>
-              </div>
-              <div style={{background:'var(--subtle)',borderRadius:8,padding:'12px'}}>
-                <div style={{fontSize:'9px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:6}}>Support Need</div>
-                <div style={{fontSize:'13px',lineHeight:1.5,color:'var(--text-sec)'}}>{assess.supportArea}</div>
-              </div>
-            </div>
+        <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'40px',textAlign:'center'}}>
+          <div style={{width:44,height:44,borderRadius:10,background:'var(--subtle)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px'}}>
+            <svg width="20" height="20" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" viewBox="0 0 24 24">
+              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12h.01M12 16h.01"/>
+            </svg>
           </div>
-          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'22px'}}>
-            <div style={{fontSize:'10px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:14}}>PDM Conversation Prep</div>
-            <div style={{marginBottom:16}}>
-              <div style={{fontSize:'9px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:6}}>Lead / Client Support</div>
-              <div style={{fontSize:'13px',lineHeight:1.55,color:'var(--text-sec)',padding:'12px',background:'var(--subtle)',borderRadius:8}}>{assess.leadSupport}</div>
-            </div>
-            <div style={{marginBottom:16}}>
-              <div style={{fontSize:'9px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:6}}>Main Focus Next Week</div>
-              <div style={{fontSize:'15px',fontWeight:700,lineHeight:1.45,color:'var(--text)'}}>{assess.nextFocus}</div>
-            </div>
-            <div style={{borderTop:'1px solid var(--subtle)',paddingTop:14}}>
-              <div style={{fontSize:'9px',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:8}}>Proof Cross-Check</div>
-              {[
-                ['Self-reported Equifits',assess.eqCompleted,coach.eq_c],
-                ['Self-reported CPTs',assess.cpts,coach.cpt],
-                ['Self-reported Active Clients',assess.activeClients,coach.ac],
-              ].map(row=>(
-                <div key={row[0]} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:'1px solid var(--row-sep)'}}>
-                  <span style={{fontSize:'12px',color:'var(--text-sec)'}}>{row[0]}</span>
-                  <span style={{fontSize:'12px',fontWeight:700,color:row[1]===row[2]?'#16A34A':'#D97706'}}>{row[1]} / SF {row[2]}</span>
-                </div>
-              ))}
-            </div>
+          <div style={{fontSize:'16px',fontWeight:700,color:'var(--text)',marginBottom:7}}>Self-Assessment Integration</div>
+          <div style={{fontSize:'13px',color:'var(--text-2)',lineHeight:1.6,maxWidth:380,margin:'0 auto 22px'}}>
+            Weekly self-assessments will appear here after integration. This layer overlays subjective signals on Salesforce KPIs to support richer PDM conversations.
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,maxWidth:560,margin:'0 auto'}}>
+            {['Confidence','Biggest Challenge','Coaching Focus','Energy Level','Self-Rated Score'].map(f=>(
+              <div key={f} style={{background:'var(--subtle)',border:'1px dashed var(--border)',borderRadius:8,padding:'12px 8px'}}>
+                <div style={{fontSize:'9px',color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'.07em',textAlign:'center'}}>{f}</div>
+                <div style={{fontSize:'12px',color:'var(--text-dim)',marginTop:5,textAlign:'center'}}>—</div>
+              </div>
+            ))}
           </div>
         </div>
       )}
