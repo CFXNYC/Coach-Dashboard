@@ -1,11 +1,26 @@
-// Generated from source of truth: May 15 2026 · Aggregated by unique employee_id
-// Active counts: Coach=2393, Coach+=1068, Coach X=142, Total=3603
+// Auto-generated 2026-05-15 from PT Employee Sessions source file
+// Logic: latest pay-period row per employee · status=A · no term date · ≤240d stale
+// Active PT Coaches: 2,370 (Coach 1,544 · Coach+ 725 · Coach X 101)
 const PORTFOLIO_STATS = {
+  "generatedOn": "2026-05-15",
+  "staleThreshold": {
+    "days": 240,
+    "cutoffDate": "2025-09-17"
+  },
   "activeCounts": {
-    "coach": 2393,
-    "coachPlus": 1068,
-    "coachX": 142,
-    "total": 3603
+    "coach": 1544,
+    "coachPlus": 725,
+    "coachX": 101,
+    "total": 2370
+  },
+  "validation": {
+    "totalRowsInFile": 88202,
+    "uniqueEmployeeIds": 5135,
+    "duplicateRowsRemoved": 83067,
+    "excludedNonPtRole": 2143,
+    "excludedStaleRecord": 489,
+    "excludedTerminated": 133,
+    "totalExcluded": 2765
   },
   "rampStages": [
     {
@@ -507,11 +522,6 @@ const PORTFOLIO_STATS = {
           "club": "West Georgia Street"
         },
         {
-          "id": "113588",
-          "name": "Arianna Watkins",
-          "club": "Flatiron"
-        },
-        {
           "id": "121331",
           "name": "Ava Manning",
           "club": "West 92nd Street"
@@ -907,19 +917,9 @@ const PORTFOLIO_STATS = {
           "club": "Williamsburg"
         },
         {
-          "id": "121211",
-          "name": "Mahir Ahmed",
-          "club": "Hudson Square"
-        },
-        {
           "id": "121660",
           "name": "Marcel Oguekemma",
           "club": "Hollywood"
-        },
-        {
-          "id": "121413",
-          "name": "Mariana Ferreira Matos",
-          "club": "Studio City"
         },
         {
           "id": "121427",
@@ -950,11 +950,6 @@ const PORTFOLIO_STATS = {
           "id": "121410",
           "name": "Max Dwight",
           "club": "Greenwich Avenue"
-        },
-        {
-          "id": "121229",
-          "name": "Maximus Virgili",
-          "club": "West 50th Street"
         },
         {
           "id": "121592",
@@ -1327,11 +1322,6 @@ const PORTFOLIO_STATS = {
           "club": "East 61st Street"
         },
         {
-          "id": "120682",
-          "name": "James Love",
-          "club": "Studio City"
-        },
-        {
           "id": "120686",
           "name": "James Monger",
           "club": "Fulton Market"
@@ -1522,16 +1512,6 @@ const PORTFOLIO_STATS = {
           "club": "Flatiron"
         },
         {
-          "id": "120828",
-          "name": "Patrick Gallagher",
-          "club": "Encino"
-        },
-        {
-          "id": "121189",
-          "name": "Paul Morss",
-          "club": "Highland Park"
-        },
-        {
           "id": "120676",
           "name": "Pema Topgyal",
           "club": "East 61st Street"
@@ -1635,11 +1615,6 @@ const PORTFOLIO_STATS = {
           "id": "120913",
           "name": "Yann Ondele",
           "club": "Hollywood"
-        },
-        {
-          "id": "120912",
-          "name": "Yezen Zaza",
-          "club": "Palo Alto"
         },
         {
           "id": "120937",
